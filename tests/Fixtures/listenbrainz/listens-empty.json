@@ -1,0 +1,9 @@
+{
+  "payload": {
+    "count": 0,
+    "latest_listen_ts": 0,
+    "oldest_listen_ts": 0,
+    "user_id": "fixture-user",
+    "listens": []
+  }
+}

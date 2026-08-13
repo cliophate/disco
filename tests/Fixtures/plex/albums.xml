@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MediaContainer size="1" totalSize="1">
+  <Directory ratingKey="201" parentRatingKey="101" guid="plex://album/fixture" title="Sometimes I Might Be Introvert" titleSort="Sometimes I Might Be Introvert" year="2021" thumb="/library/metadata/201/thumb/1700000000" addedAt="1700000000" updatedAt="1700000100">
+    <Guid id="mbid://22222222-2222-4222-8222-222222222222" />
+  </Directory>
+</MediaContainer>

@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a focused improvement within Disco's scope
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Disco is a single-owner, self-hosted companion to Plex. It does not support public registration, multiple users, multi-tenancy, Plex transcoding, playlist writes, Companion control, or direct exposure of the origin.
+  - type: checkboxes
+    id: preconditions
+    attributes:
+      label: Preconditions
+      options:
+        - label: I searched existing issues and roadmap documents.
+          required: true
+        - label: This proposal preserves the documented single-owner and security boundaries.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete user or operator problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed outcome
+      description: Describe behavior rather than implementation where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security, privacy, and provider impact
+      description: Identify new credentials, outbound requests, stored data, retention, licensing, or Plex writes. Enter "None" if not applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What workarounds or smaller options have you considered?

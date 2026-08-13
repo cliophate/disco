@@ -1,0 +1,130 @@
+name: disco
+
+x-app: &app
+  image: ${DISCO_APP_IMAGE:-disco-app:local}
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile.production
+    target: app
+  env_file:
+    - path: .env.production
+      format: raw
+  environment:
+    DB_HOST: postgres
+    REDIS_HOST: redis
+    ARTWORK_STORAGE_PATH: /var/www/html/storage/app/artwork
+  volumes:
+    - ./data/storage:/var/www/html/storage
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - app
+    - data
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  app:
+    <<: *app
+    container_name: disco-app
+    healthcheck:
+      test: ["CMD", "php", "-r", "$$s = @fsockopen('127.0.0.1', 9000); if ($$s === false) exit(1); fclose($$s);"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  queue:
+    <<: *app
+    container_name: disco-queue
+    command: ["php", "artisan", "queue:work", "redis", "--queue=default", "--sleep=3", "--tries=3", "--timeout=120"]
+    stop_grace_period: 3m
+
+  admin-queue:
+    <<: *app
+    container_name: disco-admin-queue
+    command: ["php", "artisan", "queue:work", "redis-admin", "--queue=admin", "--sleep=3", "--tries=1", "--timeout=3600"]
+    stop_grace_period: 65m
+
+  scheduler:
+    <<: *app
+    container_name: disco-scheduler
+    command: ["php", "artisan", "schedule:work"]
+    stop_grace_period: 2m
+
+  web:
+    image: ${DISCO_WEB_IMAGE:-disco-web:local}
+    container_name: disco-web
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.production
+      target: web
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:8080"
+    networks:
+      - app
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/up"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: disco-postgres
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-disco}
+      POSTGRES_USER: ${DB_USERNAME:-disco}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in your shell or Compose environment}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql
+    networks:
+      - data
+    restart: unless-stopped
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:8-alpine
+    container_name: disco-redis
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+networks:
+  app:
+    ipam:
+      config:
+        - subnet: 172.30.250.0/24
+  data:
+    internal: true

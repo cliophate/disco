@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a reproducible problem in Disco
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not post credentials, private URLs, IP addresses, email addresses, machine identifiers, library UUIDs, media paths, listening data, or unsanitized logs. Report vulnerabilities privately as described in SECURITY.md.
+  - type: checkboxes
+    id: preconditions
+    attributes:
+      label: Preconditions
+      options:
+        - label: I searched existing issues and documentation.
+          required: true
+        - label: This is a supported single-owner deployment whose origin is not exposed directly.
+          required: true
+        - label: I removed secrets and personal data from this report.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release, commit SHA, or image tag
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Deployment method, OS, browser, and PHP/PostgreSQL/Redis versions as relevant
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest deterministic reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Sanitized logs or context
+      description: Include only what is needed and redact all private data.

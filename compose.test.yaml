@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: disco_test
+      POSTGRES_USER: disco
+      POSTGRES_PASSWORD: disco-test-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U disco -d disco_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  test:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: testing
+      APP_KEY: base64:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXphYmNkZWY=
+      CACHE_STORE: array
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: disco_test
+      DB_USERNAME: disco
+      DB_PASSWORD: disco-test-only
+      MAIL_MAILER: array
+      PLEX_URL: ""
+      PLEX_TOKEN: ""
+      PLEX_EXPECTED_MACHINE_IDENTIFIER: ""
+      PLEX_EXPECTED_LIBRARY_UUID: ""
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+    volumes:
+      - ./:/app
+    command: ["sh", "-lc", "composer install --prefer-dist --no-interaction --no-progress && touch .env && php artisan test"]

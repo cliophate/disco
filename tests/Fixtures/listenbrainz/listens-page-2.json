@@ -1,0 +1,34 @@
+{
+  "payload": {
+    "count": 2,
+    "latest_listen_ts": 190,
+    "oldest_listen_ts": 180,
+    "user_id": "fixture-user",
+    "listens": [
+      {
+        "listened_at": 190,
+        "track_metadata": {
+          "artist_name": "Unknown Artist",
+          "release_name": "Unknown Album",
+          "track_name": "Unmatched Track",
+          "additional_info": {
+            "recording_msid": "77777777-7777-4777-8777-777777777777"
+          }
+        }
+      },
+      {
+        "listened_at": 180,
+        "track_metadata": {
+          "artist_name": "Fixture Artist",
+          "release_name": "Conflicting Album",
+          "track_name": "Conflicting Track",
+          "additional_info": {
+            "recording_mbid": "44444444-4444-4444-8444-444444444444",
+            "recording_msid": "88888888-8888-4888-8888-888888888888",
+            "release_mbid": "22222222-2222-4222-8222-222222222222"
+          }
+        }
+      }
+    ]
+  }
+}
