@@ -36,13 +36,18 @@ Start from `.env.production.example`, but supply deployment-specific values thro
 
 At minimum:
 
-- set `APP_ENV=production`, `APP_DEBUG=false`, and `APP_URL` to the canonical HTTPS URL;
+- set `APP_ENV=production`, `APP_DEBUG=false`, and both `APP_URL` and `ASSET_URL` to the canonical HTTPS origin;
 - generate a unique `APP_KEY` with `php artisan key:generate --show` and store it as a durable secret;
 - set `SESSION_SECURE_COOKIE=true` and `SESSION_SAME_SITE=strict`;
 - use unique PostgreSQL and Redis credentials and restrict them to private networks;
 - configure a verified HTTPS `PLEX_URL`, token, expected machine identifier, expected library UUID, and library name;
 - leave `PLEX_ALLOW_INSECURE_HTTP=false`; and
 - set `ARTWORK_STORAGE_PATH` inside the persistent `storage/` tree unless an equally durable private path is used.
+
+`ASSET_URL` is especially important behind layered proxies. If PHP receives an
+HTTP origin request from an internal web container, omitting it can cause Vite's
+script and stylesheet tags to use `http://`; browsers then block the assets as
+mixed content and show a blank page.
 
 Use dedicated, least-privilege provider credentials. Never bake secrets into images or commit them. Provider credentials entered through the administration interface are encrypted in PostgreSQL using `APP_KEY`; environment credentials remain the fallback.
 

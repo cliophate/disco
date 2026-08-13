@@ -2,17 +2,77 @@ version: 2
 updates:
   - package-ecosystem: composer
     directory: /
+    open-pull-requests-limit: 2
     schedule:
       interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Etc/UTC
+    groups:
+      composer-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: npm
     directory: /
+    open-pull-requests-limit: 2
     schedule:
       interval: weekly
+      day: monday
+      time: "05:15"
+      timezone: Etc/UTC
+    groups:
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
+    open-pull-requests-limit: 1
     schedule:
       interval: weekly
+      day: monday
+      time: "05:30"
+      timezone: Etc/UTC
+    groups:
+      actions-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: docker
     directory: /docker/php
+    open-pull-requests-limit: 1
     schedule:
       interval: weekly
+      day: monday
+      time: "05:45"
+      timezone: Etc/UTC
+    groups:
+      docker-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
