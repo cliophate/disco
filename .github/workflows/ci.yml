@@ -16,6 +16,8 @@ jobs:
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      LARAVEL_BYPASS_ENV_CHECK: "1"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -31,6 +33,8 @@ jobs:
   php-quality:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      APP_ENV: testing
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
