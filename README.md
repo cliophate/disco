@@ -1,5 +1,8 @@
 # Disco
 
+> [!CAUTION]
+> **This project is vibe-coded to the gills.** It works for me, but it may eat your data, bully your Plex server, steal your Linux ISOs, or otherwise explode without warning. Read the code, understand the code, be one with the code (I did neither). Also, use it at your own risk. Create backups. Generally, don't be an idiot and then blame me.
+
 Disco is a self-hosted, album-first interface for exploring one person's Plex music library. It builds a local catalog, enriches it with source-attributed metadata, and provides discovery, search, listening-history, upcoming-release, and direct-play views.
 
 Disco is intentionally a **single-owner** application. It has no registration, additional accounts, social features, or multi-tenant isolation. A Plex Media Server with a dedicated music library is required; Disco is not a replacement for Plex or a general-purpose Plex client.
