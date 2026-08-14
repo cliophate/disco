@@ -76,3 +76,11 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
+      # Docker tags do not map runtime compatibility to semver consistently.
+      # Keep PHP and Nginx on their reviewed release lines until deliberately upgraded.
+      - dependency-name: php
+        update-types:
+          - version-update:semver-minor
+      - dependency-name: nginx
+        update-types:
+          - version-update:semver-minor
