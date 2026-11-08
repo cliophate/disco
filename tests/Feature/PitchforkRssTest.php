@@ -32,6 +32,7 @@ class PitchforkRssTest extends TestCase
     public function test_refresh_is_bounded_idempotent_immutable_and_provider_free_at_render_time(): void
     {
         $this->preparePostgres();
+        $this->travelTo(now()->setDate(2026, 7, 24)->setTime(12, 0));
         config()->set('discovery.editorial.pitchfork.enabled', true);
         Http::fake(fn ($request) => Http::response(str_contains($request->url(), 'album-reviews')
             ? $this->feed('review-1', 'Fixture Review', 'Review excerpt')
