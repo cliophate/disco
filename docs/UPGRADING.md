@@ -43,10 +43,16 @@ Never rotate or replace `APP_KEY` as part of a routine upgrade. It is required t
    php artisan up
    ```
 
-8. Verify `/up`, owner login, library/search pages, a Plex dry run, artwork, queue processing, and scheduler execution.
+8. Verify `/up`, owner login, the discovery page and admin, a Plex dry run, artwork, queue processing, and scheduler execution.
 
 ## Rollback
 
 Application rollback is safe only when the previous code supports the migrated schema. If compatibility is not explicitly documented, stop the application, workers, and scheduler; restore PostgreSQL and `storage/` from the same pre-upgrade backup set; restore the previous secrets and configuration; and redeploy the previous images.
 
 Do not run `migrate:rollback` blindly. Data migrations and external side effects may not be reversible. Keep the failed release's logs private and sanitized before sharing them in an issue.
+
+## Discovery rebuild
+
+The discovery migration drops the old recommendation, edition, discography, narrative, credit, list, follow, editorial, notification, manual-operation and playback-parts tables. Back up before upgrading. Old migrations remain unchanged, and rollback requires restoring the backup.
+
+Remove retired provider variables and the old admin queue process. Use the current environment examples. Storage time is fixed to UTC; old rows with uncertain wall-clock offsets are left unchanged. Run `disco:listenbrainz-sync --full` after migration to backfill mapped identities, then generate the three discovery batches listed in README.

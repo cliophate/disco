@@ -3,31 +3,30 @@
 > [!CAUTION]
 > **This project is vibe-coded to the gills.** It works for me, but it may eat your data, bully your Plex server, steal your Linux ISOs, or otherwise explode without warning. Read the code, understand the code, be one with the code (I did neither). Also, use it at your own risk. Create backups. Generally, don't be an idiot and then blame me.
 
-Disco is a self-hosted, album-first interface for exploring one person's Plex music library. It builds a local catalog, enriches it with source-attributed metadata, and provides discovery, search, listening-history, upcoming-release, and direct-play views.
-
-Disco is intentionally a **single-owner** application. It has no registration, additional accounts, social features, or multi-tenant isolation. A Plex Media Server with a dedicated music library is required; Disco is not a replacement for Plex or a general-purpose Plex client.
+Disco is a small, single-owner music discovery tool. It uses listening history from ListenBrainz and a read-only Plex library to suggest albums to preview and buy on Qobuz. Listening stays in Plex.
 
 ## Features
 
-- Synchronizes a Plex music library into PostgreSQL with dry-run support and server/library identity checks.
-- Enriches local catalog data through MusicBrainz and Cover Art Archive, with optional ListenBrainz, Discogs, TheAudioDB, Wikimedia, Gotify, and publisher-feed integrations.
-- Provides album, artist, library, discovery, recommendation, search, metadata, and administration views.
-- Caches normalized artwork locally instead of exposing a live Plex artwork proxy.
-- Plays synchronized original FLAC, ALAC, or WAV media through authenticated same-origin sessions when the browser supports the format.
-- Generates token-free **Open in Plex** links when direct play is unavailable.
+One page, in priority order:
 
-Normal page requests use local PostgreSQL, Redis, and artwork state rather than making live metadata-provider requests.
+- **New artists.** About ten albums each week, drawn from ListenBrainz artist radio around the artists you play. Owned, familiar, passed and recently picked artists are excluded.
+- **New releases.** Personal ListenBrainz releases plus releases by artists in the current discovery pool. Refreshed daily, with released and upcoming dates.
+- **More from artists you play.** Unheard albums by high-taste artists, refreshed weekly.
+
+Each pick has local cover art when available, a plain reason, an exact Qobuz album link or search fallback, a Passed action, and New, In Plex or Played status. Earlier unresolved picks stay in a collapsed list. Passing a new-artist pick suppresses the artist; other passes suppress the album. History prevents album repeats.
+
+Plex sync retains server and library identity checks. MusicBrainz supplies exact identities and album types. Cover Art Archive and Plex artwork use the existing local cache. Owner admin contains provider credentials and pipeline status.
 
 ## Boundaries
 
-- One owner account only. Registration and second accounts are not supported.
-- Plex remains the media server and source of library truth.
-- No Plex transcoding, autoplay, Companion control, playlist writes, or library-metadata mutation.
-- Plex writes are limited to timeline updates and one scrobble needed to record playback initiated in Disco.
-- No guarantee of gapless playback, uninterrupted mobile background playback, or support for browser-incompatible source formats.
-- Optional integrations remain subject to their providers' terms, rate limits, availability, and data policies.
+- One owner, no registration, social features or additional accounts.
+- Whole albums and EPs. Standalone singles, compilations, live albums and the other excluded secondary types are skipped. Soundtracks are allowed.
+- Plex is read-only. There is no player, stream gateway, playback reporting, library browser, search, artist follow, listening list, notification or push delivery.
+- No genre-based recommendations or copied editorial prose.
+- Page requests read local state only. Scheduled jobs fetch metadata and prepare Qobuz destinations and artwork.
+- No Qobuz API credentials or playback integration. Qobuz links open its site or app.
 
-See the accepted architecture decisions in [`docs/adr/`](docs/adr/) for detailed connector and playback constraints.
+See [ADR 0006](docs/adr/0006-album-discovery.md) for ranking, matching, provider contracts and storage decisions. [ADR 0002](docs/adr/0002-plex-read-only.md) keeps Plex read-only.
 
 ## Requirements
 
@@ -75,7 +74,24 @@ php artisan disco:plex-artwork --type=artist
 php artisan disco:musicbrainz-enrich
 ```
 
-Optional integrations are documented by their variables in [`.env.example`](.env.example). Keep optional providers disabled unless you have reviewed their current terms and have appropriate credentials.
+Configure ListenBrainz with `LISTENBRAINZ_USERNAME` and `LISTENBRAINZ_TOKEN`, then import history. The full import backfills derived MusicBrainz artist and release-group identities without changing immutable listening events.
+
+```bash
+php artisan disco:listenbrainz-sync --full
+php artisan disco:discovery-new-artists
+php artisan disco:discovery-new-releases
+php artisan disco:discovery-more
+php artisan disco:discovery-reconcile
+php artisan disco:discovery-artwork
+```
+
+Completed batches are idempotent for their UTC week or day. Failed runs can be retried with the same command. Empty batches with no identified seeds can be retried after importing history or enriching owned artists. The current batch replaces the current view, while earlier unresolved picks remain available.
+
+The UTC schedule runs Plex sync hourly, ListenBrainz import every 15 minutes and a full import Monday at 01:37, MusicBrainz enrichment daily at 03:00, new artists Monday at 05:00, new releases daily at 07:00, and more albums Monday at 08:00. Plex sync and ListenBrainz import reconcile pick states on completion. Plex artwork retries run daily at 02:30 and discovery cover retries at 07:45. Newly released albums retry covers even if an earlier upcoming lookup was missing.
+
+The incremental overlap defaults to 172800 seconds, or 48 hours. Fingerprints deduplicate repeated listens. Increase `LISTENBRAINZ_OVERLAP_SECONDS` if upstream batches arrive later. All application and database timestamps use UTC; `APP_TIMEZONE` no longer overrides storage time.
+
+[`.env.example`](.env.example) documents batch size, seed count, lifetime-listen threshold, repeat cooldown, seed diversity cap and artist-popularity penalty. Seeds receive 0.1 points per listen, plus 1 within 365 days and 2 within 90 days. Plex play contributions use the larger of Plex and ListenBrainz scores to limit double counting.
 
 ## Production
 
@@ -88,14 +104,15 @@ Before every upgrade, back up PostgreSQL, the complete Laravel `storage/` direct
 ## Verification
 
 ```bash
-php artisan test
-./vendor/bin/pint --test
-npm test
-npm run build
-npm run typecheck
 docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from test
 docker compose -f compose.test.yaml down --volumes --remove-orphans
+./vendor/bin/pint --test
+npm test
+npm run typecheck
+npm run build
 ```
+
+The Compose command runs `php artisan test` against a disposable PostgreSQL database. If PHP is unavailable on the host, run Pint with `docker compose -f compose.test.yaml run --rm --no-deps test ./vendor/bin/pint --test`.
 
 Tests use synthetic fixtures and do not contact live providers. PostgreSQL integration tests refuse to reset a database not named `disco_test` in the testing environment.
 

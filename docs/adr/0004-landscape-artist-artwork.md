@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0006](0006-album-discovery.md). The feature and its runtime integration have been removed. The original decision remains below as history.
 
 ## Context
 
