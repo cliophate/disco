@@ -21,6 +21,7 @@ class DiscoveryAlbumTest extends DiscoveryTestCase
         $lb->shouldReceive('artistRadio')->andReturn([$this->mbid(2) => 'Candidate']);
         $lb->shouldReceive('artistPopularity')->andReturn([]);
         $mb = Mockery::mock(MusicBrainzClient::class);
+        $mb->shouldReceive('artistTags')->andReturn([]);
         $artwork = Mockery::mock(CoverArtArchiveIngestor::class);
         $this->app->instance(ListenBrainzClient::class, $lb);
         $this->app->instance(MusicBrainzClient::class, $mb);

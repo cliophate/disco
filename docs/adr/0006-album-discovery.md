@@ -30,9 +30,21 @@ Exclude owned artists by ID or name, artists above five lifetime listens by defa
 
 Choose the highest-listen-count eligible release group from ListenBrainz top release groups, validating type and primary artist credit against MusicBrainz. Allow Album and EP. Exclude compilation, live, remix, DJ-mix, demo, interview, spokenword, audiobook, audio drama and mixtape/street secondary types. Soundtracks qualify. Standalone singles never qualify. There is one pick per artist, and each named reason seed gets credit for at most two picks. Reasons name at most two qualifying seeds. Recording CF recommendations are removed.
 
+Limit soundtrack-lane picks with `discovery.soundtrack_cap`, configured by `DISCOVERY_SOUNDTRACK_CAP` and defaulting to 2 per batch. A cap of 0 skips every pick in this lane. After reaching the cap, skip further soundtrack candidates and continue down the ranked pool. These skips do not consume the album lookup allowance or seed reason credits, and the saved candidate pool retains them.
+
+A pick is in the soundtrack lane when any of these rules matches:
+
+- The chosen MusicBrainz release group has secondary type Soundtrack.
+- The artist's MusicBrainz genres or tags contain `video game music`, `vgm`, `soundtrack`, `chiptune`, `film score`, `film composer`, `composer`, `game music`, `video game` or `anime soundtrack`. Match case-insensitively. Fetch `artist/{mbid}?inc=genres+tags` only after finding an eligible, unexcluded group for a considered pick. Reuse the result within the batch, use the shared rate-limited client and include actual HTTP calls in provider statistics. A failed lookup records a provider failure; the other rules still apply.
+- At least half the candidate's total `log1p(seed taste score)` weight comes from soundtrack-leaning seeds. Use every referring seed before truncating reason credits. The listener penalty does not change this proportion.
+
+TasteProfile classifies seeds with one aggregate query over active, source-present listens in the last two years. Each listen counts once per credited artist. A listen is soundtrack-like if its derived release-group MBID maps through active catalog identifiers to a Soundtrack-typed group, or its supplied release title matches soundtrack, OST, original score, orchestrated, video game, game music, "music from", Pokémon, Pokemon, Zelda, Final Fantasy, Mario, Nintendo or VGM. Title matching ignores case and uses word boundaries. Name-only listens use the same unique catalog artist fallback as taste scoring. A seed qualifies at `discovery.soundtrack_seed_threshold`, configured by `DISCOVERY_SOUNDTRACK_SEED_THRESHOLD` and defaulting to 0.5. This share counts listens without recency score weights. Older history and Plex play counts do not enter the share. Aggregate rows stream through TasteProfile to keep the existing 128 MiB memory budget.
+
 ### Releases and familiar artists
 
 Daily releases combine the user's fresh-release endpoint with the sitewide endpoint intersected with the saved candidate artist IDs. Personal rows win duplicates. Personal `days` accepts 1 to 90; the sitewide client accepts 30 or 60. MusicBrainz verifies the same Album/EP and credit rules. Owned, heard, passed and previously picked albums are excluded. Daily runs add previously unpicked releases. The page combines completed batches into one list of unpassed, unplayed picks dated from 30 days ago into the future. Released albums appear newest first, followed by upcoming albums soonest first. This section has no Earlier list. Personal reasons use per-artist listen counts by MBID with a normalized-name fallback. Candidate reasons name up to two referring seeds.
+
+Apply the same soundtrack cap to the candidate tier of each daily batch, using saved candidate seed scores and current seed classification. Personal rows neither consume this cap nor trigger artist tag lookups. A personal row that also appears in the candidate feed stays exempt. The familiar-artist section is exempt too.
 
 The weekly familiar-artist batch browses high-taste artists for unowned, unheard eligible groups, up to ten picks with one per artist and no repeated normalized artist name. Albums precede EPs, newest first within each type. Browse rows exclude ineligible types and heard albums before detail lookups. A separate MusicBrainz budget defaults to 150 actual HTTP calls, including browse pages, edition lookups, artwork fallback requests and retries. There is no genre input.
 
@@ -41,6 +53,8 @@ The weekly familiar-artist batch browses high-taste artists for unowned, unheard
 Batches are unique per section and UTC period. Completed batches are idempotent; failed batches retry. Empty batches with no identified seeds can retry after imports. Picks and passes retain history. For weekly sections, current completed picks come first and earlier unresolved picks use a collapsed disclosure. Failed runs preserve the last successful batch and candidate pool.
 
 Generation uses a separate one-hour lock per section. Scheduled overlap locks also expire after one hour. Reconciliation runs after the generation lock releases. Batch summaries retain provider failure totals and counts by endpoint plus HTTP status or exception class, without request URLs or payloads.
+
+New-artist and new-release summaries also retain `soundtrack_picks`, `soundtrack_skipped` and `soundtrack_rule_hits`, keyed by `release_type`, `artist_tags` and `seed_weight`. Picks and skips count once even when several rules match. Rule hits count each evaluated eligible album, including cap skips; one album can hit several rules. Exempt personal rows do not enter these counts.
 
 Plex sync matches ownership by release-group ID or normalized artist and title. Album `view_count` or `last_viewed_at`, or matching listens, marks a pick Played. States only advance. A matching listen can mark a pick Played before the next Plex sync. Passing a new-artist pick suppresses that artist; other passes suppress the album.
 

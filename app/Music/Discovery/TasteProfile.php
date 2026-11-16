@@ -22,12 +22,15 @@ class TasteProfile
 
     private array $heardAlbumNames = [];
 
+    private array $soundtrackSeeds = [];
+
     public function __construct(private readonly ArtistPreferencePolicy $preferences) {}
 
     public function load(): self
     {
         $this->artists = $this->heardArtists = $this->heardNames = $this->heardAlbums = $this->heardAlbumNames = [];
         $this->catalogNames = $this->namePriorities = [];
+        $this->soundtrackSeeds = [];
         $byName = [];
         $identifiers = DB::table('catalog.external_identifiers as identifiers')
             ->join('catalog.entities as entities', 'entities.id', '=', 'identifiers.entity_id')
@@ -99,8 +102,58 @@ class TasteProfile
             $this->add($mbid, $this->catalogNames[$mbid] ?? $artist['name'], max(0, $artist['score'] - ($this->artists[$mbid]['score'] ?? 0)), 2);
         }
         uasort($this->artists, fn ($a, $b) => ($b['score'] <=> $a['score']) ?: strcmp($a['mbid'], $b['mbid']));
+        $this->loadSoundtrackSeeds($byName);
 
         return $this;
+    }
+
+    private function loadSoundtrackSeeds(array $byName): void
+    {
+        // Aggregate in PostgreSQL instead of retaining another copy of listening history.
+        $pattern = '\\m(soundtrack|ost|original[[:space:]]+score|orchestrated|video[[:space:]]+game|game[[:space:]]+music|music[[:space:]]+from|pok[eé]mon|zelda|final[[:space:]]+fantasy|mario|nintendo|vgm)\\M';
+        $rows = DB::table('activity.listening_events as events')
+            ->join('source.accounts as accounts', 'accounts.id', '=', 'events.source_account_id')
+            ->leftJoin('activity.listen_identities as identities', 'identities.listening_event_id', '=', 'events.id')
+            ->leftJoin('activity.listening_event_matches as matches', 'matches.listening_event_id', '=', 'events.id')
+            ->where('accounts.status', 'active')
+            ->where(fn ($q) => $q->whereNull('matches.id')->orWhere('matches.source_present', true))
+            ->whereBetween('events.listened_at', [now()->subYears(2), now()])
+            ->selectRaw("COALESCE(identities.artist_mbids, '[]'::jsonb) as artist_mbids,
+                CASE WHEN COALESCE(identities.artist_mbids, '[]'::jsonb) = '[]'::jsonb THEN events.supplied_artist END as fallback_name,
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE events.supplied_release ~* ? OR EXISTS (
+                    SELECT 1 FROM catalog.external_identifiers identifiers
+                    JOIN catalog.entities entities ON entities.id = identifiers.entity_id AND entities.status = 'active'
+                    JOIN catalog.release_groups groups ON groups.entity_id = identifiers.entity_id
+                    WHERE identifiers.namespace = 'musicbrainz.release_group' AND identifiers.status = 'active'
+                        AND identifiers.value = identities.release_group_mbid::text
+                        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(groups.secondary_types) secondary_type WHERE lower(secondary_type) = 'soundtrack')
+                )) as soundtrack", [$pattern])
+            ->groupByRaw('1, 2')->cursor();
+        $totals = $soundtracks = [];
+        foreach ($rows as $row) {
+            $mbids = Identity::mbids(json_decode($row->artist_mbids, true));
+            if ($mbids === [] && isset($byName[Identity::name($row->fallback_name)])) {
+                $mbids = [$byName[Identity::name($row->fallback_name)]];
+            }
+            foreach ($mbids as $mbid) {
+                if (! isset($this->artists[$mbid])) {
+                    continue;
+                }
+                $totals[$mbid] = ($totals[$mbid] ?? 0) + (int) $row->total;
+                $soundtracks[$mbid] = ($soundtracks[$mbid] ?? 0) + (int) $row->soundtrack;
+            }
+        }
+        foreach ($totals as $mbid => $total) {
+            if (config('discovery.soundtrack_seed_threshold', 0.5) <= $soundtracks[$mbid] / $total) {
+                $this->soundtrackSeeds[$mbid] = true;
+            }
+        }
+    }
+
+    public function soundtrackSeed(string $mbid): bool
+    {
+        return isset($this->soundtrackSeeds[$mbid]);
     }
 
     public function weight(?CarbonImmutable $date): float

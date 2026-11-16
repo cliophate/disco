@@ -26,6 +26,7 @@ class DiscoveryBatchTest extends DiscoveryTestCase
         $lb = Mockery::mock(ListenBrainzClient::class);
         $lb->shouldReceive('configured')->andReturnTrue();
         $mb = Mockery::mock(MusicBrainzClient::class);
+        $mb->shouldReceive('artistTags')->andReturn([]);
         $albums = Mockery::mock(DiscoveryAlbumResolver::class);
         $albums->shouldReceive('prepare')->andReturnUsing(fn ($group, $mbid, $name, $release = null) => [
             'artist_mbid' => $mbid, 'artist_name' => $name, 'release_group_mbid' => $group['id'],
@@ -119,6 +120,7 @@ class DiscoveryBatchTest extends DiscoveryTestCase
 
     public function test_more_uses_high_taste_artists_and_skips_owned_and_heard_albums(): void
     {
+        config()->set('discovery.soundtrack_cap', 0);
         [, $mb, $albums] = $this->providers();
         $this->listen('Seed', $this->mbid(1), album: 'Heard', groupMbid: $this->mbid(102));
         $this->plex('Seed', '101');
@@ -126,7 +128,7 @@ class DiscoveryBatchTest extends DiscoveryTestCase
         $mb->shouldReceive('artistReleaseGroups')->with($this->mbid(1))->andReturn(['release_groups' => [
             ...array_map(fn ($id) => ['id' => $this->mbid($id), 'primary-type' => 'Album', 'artist-credit' => [['artist' => ['id' => $this->mbid(1)]]]], [101, 102, 103]),
         ]]);
-        $albums->shouldReceive('group')->andReturnUsing(fn ($id) => ['id' => $id, 'title' => match ($id) {
+        $albums->shouldReceive('group')->andReturnUsing(fn ($id) => ['id' => $id, 'secondary-types' => ['Soundtrack'], 'title' => match ($id) {
             $this->mbid(101) => 'Owned', $this->mbid(102) => 'Heard', default => 'Unheard',
         }]);
         app(DiscoveryBatchGenerator::class)->generate('more');

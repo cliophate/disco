@@ -6,6 +6,7 @@ use App\Music\Discovery\DiscoveryAlbumResolver;
 use App\Music\Discovery\DiscoveryBatchGenerator;
 use App\Music\ListenBrainz\ListenBrainzClient;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Mockery;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -49,6 +50,9 @@ class DiscoveryMemoryTest extends DiscoveryTestCase
         ]);
         $this->app->instance(DiscoveryAlbumResolver::class, $albums);
         $this->app->instance(ListenBrainzClient::class, $lb);
+        Http::fake(['https://musicbrainz.test/ws/2/artist/*' => fn ($request) => Http::response([
+            'id' => basename(parse_url($request->url(), PHP_URL_PATH)), 'genres' => [], 'tags' => [],
+        ], 200, ['Content-Type' => 'application/json'])]);
         gc_collect_cycles();
         memory_reset_peak_usage();
         $batch = app(DiscoveryBatchGenerator::class)->generate('new_artists');

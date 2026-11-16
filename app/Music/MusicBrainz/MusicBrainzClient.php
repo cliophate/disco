@@ -14,6 +14,20 @@ use Throwable;
 class MusicBrainzClient
 {
     /** @return array<string, mixed> */
+    public function artistTags(string $mbid): array
+    {
+        if (! Str::isUuid($mbid)) {
+            throw new RuntimeException('Invalid MusicBrainz artist request.');
+        }
+        $payload = $this->request("/artist/{$mbid}", ['inc' => 'genres+tags', 'fmt' => 'json']);
+        if (($payload['id'] ?? null) !== $mbid) {
+            throw new RuntimeException('MusicBrainz returned an unexpected artist.');
+        }
+
+        return $payload;
+    }
+
+    /** @return array<string, mixed> */
     public function entity(string $type, string $mbid): array
     {
         if (! Str::isUuid($mbid) || ! in_array($type, ['artist', 'recording', 'release', 'release-group', 'work'], true)) {

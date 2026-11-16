@@ -7,6 +7,8 @@ return [
     'lifetime_listen_threshold' => max(0, (int) env('DISCOVERY_LIFETIME_LISTEN_THRESHOLD', 5)),
     'repeat_weeks' => max(1, (int) env('DISCOVERY_REPEAT_WEEKS', 12)),
     'seed_cap' => max(1, (int) env('DISCOVERY_SEED_CAP', 2)),
+    'soundtrack_cap' => max(0, (int) env('DISCOVERY_SOUNDTRACK_CAP', 2)),
+    'soundtrack_seed_threshold' => min(1, max(0, (float) env('DISCOVERY_SOUNDTRACK_SEED_THRESHOLD', 0.5))),
     'max_listener_count' => max(0, (int) env('DISCOVERY_MAX_LISTENER_COUNT', 25000)),
     'popular_listener_threshold' => max(1, (int) env('DISCOVERY_POPULAR_LISTENER_THRESHOLD', 5000)),
     'fresh_days' => min(90, max(1, (int) env('DISCOVERY_FRESH_DAYS', 30))),
