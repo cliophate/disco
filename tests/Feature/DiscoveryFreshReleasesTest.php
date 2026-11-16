@@ -41,6 +41,9 @@ class DiscoveryFreshReleasesTest extends DiscoveryTestCase
         $shared['artist_mbids'] = [$this->mbid(30), $this->mbid(20)];
         $shared['artist_credit_name'] = 'Artist 30 & Artist 20';
         Http::fake([
+            'https://musicbrainz.test/ws/2/artist/*' => fn ($request) => Http::response([
+                'id' => basename(parse_url($request->url(), PHP_URL_PATH)), 'genres' => [], 'tags' => [],
+            ], 200, ['Content-Type' => 'application/json']),
             'https://listenbrainz.test/1/user/*' => Http::response(['payload' => ['user_id' => 'fixture-listener', 'releases' => $personal]], 200, ['Content-Type' => 'application/json']),
             'https://listenbrainz.test/1/explore/*' => function ($request) use ($shared) {
                 $releases = collect([$this->release(20), $this->release(21), $this->release(1), $shared])

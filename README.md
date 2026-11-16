@@ -93,6 +93,8 @@ The incremental overlap defaults to 172800 seconds, or 48 hours. Fingerprints de
 
 [`.env.example`](.env.example) documents batch size, seed count, lifetime-listen threshold, repeat cooldown, seed diversity cap, artist listener cap, popularity threshold and the separate MusicBrainz call budget for familiar artists. Unknown popularity is neutral. Known counts above 25000 are excluded by default, and remaining scores divide by `sqrt(1 + listeners / 5000)`. Seeds receive 0.1 points per listen, plus 1 within 365 days and 2 within 90 days. Plex play contributions use the larger of Plex and ListenBrainz scores to limit double counting.
 
+`DISCOVERY_SOUNDTRACK_CAP` defaults to 2 soundtrack-lane picks per batch for new artists and candidate new releases. Personal new releases and More are exempt. A pick enters this lane if its release group is Soundtrack-typed, its artist has a soundtrack-related MusicBrainz genre or tag, or at least half its seed weight comes from soundtrack-leaning seeds. `DISCOVERY_SOUNDTRACK_SEED_THRESHOLD` defaults to 0.5, the share of a seed's last two years of listens on Soundtrack-typed releases or titles matching soundtrack and game patterns. Cap skips leave room for other ranked candidates without using their album lookup allowance. Set the cap to 0 to skip all picks in this lane. Batch summaries record soundtrack picks, skips and hits for each rule.
+
 ## Production
 
 This repository includes production application and web-server images plus a [`compose.production.example.yaml`](compose.production.example.yaml) reference stack. Operators must still provide TLS termination, secrets, durable permissions, monitoring, and backups.

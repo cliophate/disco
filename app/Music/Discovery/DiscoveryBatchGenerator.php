@@ -125,6 +125,8 @@ class DiscoveryBatchGenerator
         $credits = [];
         $names = [];
         $lookups = 0;
+        $soundtrack = $this->soundtrackSummary();
+        $tags = [];
         foreach ($pool as $candidate) {
             if (count($picks) >= config('discovery.batch_size', 10) || $lookups >= config('discovery.album_lookup_limit', 50)) {
                 break;
@@ -133,11 +135,28 @@ class DiscoveryBatchGenerator
             if ($available === [] || isset($names[Identity::name($candidate['artist_name'])])) {
                 continue;
             }
-            $lookups++;
-            $pick = $this->topAlbum($candidate['artist_mbid'], $candidate['artist_name'], $exclusions);
+            $pick = null;
+            $capped = false;
+            $rules = [];
+            foreach ($this->topGroups($candidate['artist_mbid'], $candidate['artist_name'], $exclusions) as [$group, $caaReleaseMbid]) {
+                $rules = $this->soundtrackRules($group, $candidate['artist_mbid'], $candidate['seeds'], $tags);
+                if ($this->soundtrackCapped($rules, $soundtrack)) {
+                    $capped = true;
+                    break;
+                }
+                $pick = $this->attempt('musicbrainz.release', fn () => $this->albums->prepare($group, $candidate['artist_mbid'], $candidate['artist_name'], $caaReleaseMbid));
+                if ($pick !== null) {
+                    break;
+                }
+            }
+            // Cap skips must not use up the attempts needed to fill from the remaining pool.
+            if (! $capped) {
+                $lookups++;
+            }
             if ($pick === null) {
                 continue;
             }
+            $soundtrack['soundtrack_picks'] += in_array(true, $rules, true) ? 1 : 0;
             // Every seed named in a reason counts toward its diversity cap.
             $credited = array_slice($available, 0, 2);
             foreach ($credited as $seed) {
@@ -147,10 +166,10 @@ class DiscoveryBatchGenerator
             $picks[] = [...$pick, 'reason' => 'Similar to '.implode(' and ', array_column($credited, 'name')), 'seeds' => $credited];
         }
 
-        return [$picks, array_values($pool), ['seeds' => count($seeds), 'candidates' => count($pool), 'popularity_available' => $popularity !== []]];
+        return [$picks, array_values($pool), ['seeds' => count($seeds), 'candidates' => count($pool), 'popularity_available' => $popularity !== [], ...$soundtrack]];
     }
 
-    private function topAlbum(string $mbid, string $name, DiscoveryExclusions $exclusions): ?array
+    private function topGroups(string $mbid, string $name, DiscoveryExclusions $exclusions): iterable
     {
         $rows = $this->attempt('listenbrainz.top_release_groups', fn () => $this->listenBrainz->topReleaseGroups($mbid));
         $rows = collect($rows ?? [])->filter(fn ($row) => is_array($row) && Str::isUuid($row['release_group_mbid'] ?? null))
@@ -160,13 +179,8 @@ class DiscoveryBatchGenerator
             if ($group === null || $exclusions->album($group['id'], $name, $group['title'], $mbid)) {
                 continue;
             }
-            $pick = $this->attempt('musicbrainz.release', fn () => $this->albums->prepare($group, $mbid, $name, data_get($row, 'release_group.caa_release_mbid')));
-            if ($pick !== null) {
-                return $pick;
-            }
+            yield [$group, data_get($row, 'release_group.caa_release_mbid')];
         }
-
-        return null;
     }
 
     private function fresh(DiscoveryExclusions $exclusions): array
@@ -201,6 +215,8 @@ class DiscoveryBatchGenerator
             }
         }
         $picks = [];
+        $soundtrack = $this->soundtrackSummary();
+        $tags = [];
         foreach ($rows as $row) {
             if (count($picks) >= 30) {
                 break;
@@ -223,9 +239,14 @@ class DiscoveryBatchGenerator
             if ($artistName === '' || $exclusions->album($group['id'], $artistName, $group['title'], $artistMbid)) {
                 continue;
             }
+            $evidence = $candidate ?? $candidates->get(array_values(array_intersect($row['artist_mbids'], $pool))[0] ?? '');
+            $rules = $row['tier'] === 'candidate' ? $this->soundtrackRules($group, $artistMbid, $evidence?->seeds ?? [], $tags) : [];
+            if ($this->soundtrackCapped($rules, $soundtrack)) {
+                continue;
+            }
             $pick = $this->attempt('musicbrainz.release', fn () => $this->albums->prepare($group, $artistMbid, $artistName, $row['caa_release_mbid']));
             if ($pick !== null) {
-                $evidence = $candidate ?? $candidates->get(array_values(array_intersect($row['artist_mbids'], $pool))[0] ?? '');
+                $soundtrack['soundtrack_picks'] += in_array(true, $rules, true) ? 1 : 0;
                 $seeds = $row['tier'] === 'candidate' ? array_slice($evidence?->seeds ?? [], 0, 2) : [];
                 $seeds = array_map(fn ($seed) => [...$seed, 'name' => $this->taste->artistName($seed['mbid']) ?? $seed['name']], $seeds);
                 $listens = $this->taste->lifetimeListens($artistMbid, $artistName);
@@ -236,7 +257,50 @@ class DiscoveryBatchGenerator
             }
         }
 
-        return [$picks, [], ['personal_releases' => count($personal), 'candidate_releases' => count($rows) - count($personal)]];
+        return [$picks, [], ['personal_releases' => count($personal), 'candidate_releases' => count($rows) - count($personal), ...$soundtrack]];
+    }
+
+    private function soundtrackSummary(): array
+    {
+        return ['soundtrack_picks' => 0, 'soundtrack_skipped' => 0, 'soundtrack_rule_hits' => ['release_type' => 0, 'artist_tags' => 0, 'seed_weight' => 0]];
+    }
+
+    private function soundtrackRules(array $group, string $mbid, array $seeds, array &$tags): array
+    {
+        if (! array_key_exists($mbid, $tags)) {
+            $artist = $this->attempt('musicbrainz.artist', fn () => $this->musicBrainz->artistTags($mbid)) ?? [];
+            $artistTags = array_map(fn ($tag) => Identity::name($tag['name'] ?? ''), [...($artist['genres'] ?? []), ...($artist['tags'] ?? [])]);
+            $tags[$mbid] = array_intersect($artistTags, ['video game music', 'vgm', 'soundtrack', 'chiptune', 'film score', 'film composer', 'composer', 'game music', 'video game', 'anime soundtrack']) !== [];
+        }
+        $total = $soundtrack = 0.0;
+        foreach ($seeds as $seed) {
+            $weight = log1p($seed['score'] ?? 0);
+            $total += $weight;
+            if ($this->taste->soundtrackSeed($seed['mbid'])) {
+                $soundtrack += $weight;
+            }
+        }
+
+        return [
+            'release_type' => in_array('soundtrack', array_map('strtolower', $group['secondary-types'] ?? []), true),
+            'artist_tags' => $tags[$mbid],
+            // Popularity applies equally to every seed contribution, so use the original weights.
+            'seed_weight' => $total > 0 && $soundtrack >= $total / 2,
+        ];
+    }
+
+    private function soundtrackCapped(array $rules, array &$summary): bool
+    {
+        foreach ($rules as $rule => $hit) {
+            $summary['soundtrack_rule_hits'][$rule] += $hit ? 1 : 0;
+        }
+        if (in_array(true, $rules, true) && $summary['soundtrack_picks'] >= config('discovery.soundtrack_cap', 2)) {
+            $summary['soundtrack_skipped']++;
+
+            return true;
+        }
+
+        return false;
     }
 
     private function more(DiscoveryExclusions $exclusions): array
