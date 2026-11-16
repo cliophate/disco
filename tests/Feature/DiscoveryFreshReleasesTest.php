@@ -42,7 +42,12 @@ class DiscoveryFreshReleasesTest extends DiscoveryTestCase
         $shared['artist_credit_name'] = 'Artist 30 & Artist 20';
         Http::fake([
             'https://listenbrainz.test/1/user/*' => Http::response(['payload' => ['user_id' => 'fixture-listener', 'releases' => $personal]], 200, ['Content-Type' => 'application/json']),
-            'https://listenbrainz.test/1/explore/*' => Http::response(['payload' => ['total_count' => 4, 'releases' => [$this->release(20), $this->release(21), $this->release(1), $shared]]], 200, ['Content-Type' => 'application/json']),
+            'https://listenbrainz.test/1/explore/*' => function ($request) use ($shared) {
+                $releases = collect([$this->release(20), $this->release(21), $this->release(1), $shared])
+                    ->filter(fn ($release) => ($release['release_date'] < '2026-11-16') === str_contains($request->url(), 'past=true'))->values()->all();
+
+                return Http::response(['payload' => ['total_count' => count($releases), 'releases' => $releases]], 200, ['Content-Type' => 'application/json']);
+            },
         ]);
         $albums = Mockery::mock(DiscoveryAlbumResolver::class);
         $albums->shouldReceive('group')->andReturnUsing(fn ($id, $artist) => ['id' => $id, 'title' => 'Album '.((int) substr($id, 0, 8) - 100), 'artist-credit' => [['artist' => ['name' => 'Artist '.((int) substr($id, 0, 8) - 100)]]]]);
@@ -52,6 +57,10 @@ class DiscoveryFreshReleasesTest extends DiscoveryTestCase
         ]);
         $this->app->instance(DiscoveryAlbumResolver::class, $albums);
         app(DiscoveryBatchGenerator::class)->generate('new_releases');
+        foreach ([['true', 'false'], ['false', 'true']] as [$past, $future]) {
+            Http::assertSent(fn ($request) => str_contains($request->url(), '/1/explore/fresh-releases/')
+                && str_contains($request->url(), "past={$past}") && str_contains($request->url(), "future={$future}"));
+        }
         $picks = DiscoveryPick::query()->orderBy('position')->get();
         $this->assertSame(['Album 1', 'Album 2', 'Album 6', 'Album 20', 'Album 30'], $picks->pluck('title')->all());
         $this->assertSame("You've played Artist 1 2 times", $picks[0]->reason);

@@ -20,7 +20,7 @@ Storage uses UTC in PHP and the PostgreSQL connection. Older timestamps with an 
 
 ### Weekly new artists
 
-Expand about thirty seeds through ListenBrainz artist radio in medium mode. Drop the seed itself. A candidate scores the sum of `log1p(seed taste score)` across distinct referring seeds. Exclude artists above `discovery.max_listener_count`, default 50000. Apply the listener-count penalty to known counts with `discovery.popular_listener_threshold`, default 5000:
+Expand about thirty seeds through ListenBrainz artist radio in medium mode. Drop the seed itself. A candidate scores the sum of `log1p(seed taste score)` across distinct referring seeds. Exclude artists above `discovery.max_listener_count`, default 25000. Apply the listener-count penalty to known counts with `discovery.popular_listener_threshold`, default 5000:
 
 `score / sqrt(1 + listeners / threshold)`
 

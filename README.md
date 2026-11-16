@@ -91,7 +91,7 @@ The UTC schedule runs Plex sync hourly, ListenBrainz import every 15 minutes and
 
 The incremental overlap defaults to 172800 seconds, or 48 hours. Fingerprints deduplicate repeated listens. Increase `LISTENBRAINZ_OVERLAP_SECONDS` if upstream batches arrive later. All application and database timestamps use UTC; `APP_TIMEZONE` no longer overrides storage time.
 
-[`.env.example`](.env.example) documents batch size, seed count, lifetime-listen threshold, repeat cooldown, seed diversity cap artist listener cap, popularity threshold and the separate MusicBrainz call budget for familiar artists. Unknown popularity is neutral. Known counts above 50000 are excluded by default, and remaining scores divide by `sqrt(1 + listeners / 5000)`. Seeds receive 0.1 points per listen, plus 1 within 365 days and 2 within 90 days. Plex play contributions use the larger of Plex and ListenBrainz scores to limit double counting.
+[`.env.example`](.env.example) documents batch size, seed count, lifetime-listen threshold, repeat cooldown, seed diversity cap, artist listener cap, popularity threshold and the separate MusicBrainz call budget for familiar artists. Unknown popularity is neutral. Known counts above 25000 are excluded by default, and remaining scores divide by `sqrt(1 + listeners / 5000)`. Seeds receive 0.1 points per listen, plus 1 within 365 days and 2 within 90 days. Plex play contributions use the larger of Plex and ListenBrainz scores to limit double counting.
 
 ## Production
 

@@ -186,7 +186,11 @@ class DiscoveryBatchGenerator
     {
         $candidates = DiscoveryCandidate::query()->get()->keyBy('artist_mbid');
         $pool = $candidates->keys()->all();
-        $sitewide = $pool === [] ? [] : ($this->attempt('listenbrainz.fresh_releases', fn () => $this->listenBrainz->freshReleases(now()->toImmutable(), $days <= 30 ? 30 : 60, true, true))['payload']['releases'] ?? []);
+        // The combined past and future window can exceed the client's response cap, so fetch each direction separately.
+        $sitewide = $pool === [] ? [] : collect([true, false])->flatMap(fn (bool $past) => $this->attempt(
+            'listenbrainz.fresh_releases',
+            fn () => $this->listenBrainz->freshReleases(now()->toImmutable(), $days <= 30 ? 30 : 60, $past, ! $past),
+        )['payload']['releases'] ?? [])->all();
         $rows = [];
         foreach ($personal as $row) {
             $rows[$row['release_group_mbid']] = [...$row, 'tier' => 'personal'];
