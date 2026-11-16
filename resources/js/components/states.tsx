@@ -35,7 +35,7 @@ export function ErrorState({ error, retry }: { error: unknown; retry?: () => voi
         <div className="grid min-h-64 place-items-center border border-coral/30 bg-coral/5 px-6 text-center" role="alert">
             <div>
                 <AlertCircle className="mx-auto size-7 text-coral" aria-hidden="true" />
-                <h2 className="mt-4 font-serif text-2xl font-bold">Something slipped off beat</h2>
+                <h2 className="mt-4 font-serif text-2xl font-bold">Could not load this page</h2>
                 <p className="mt-2 text-base leading-7 text-fog">{error instanceof Error ? error.message : 'Please try that request again.'}</p>
                 {retry && <Button className="mt-5" variant="secondary" onClick={retry}>Try again</Button>}
             </div>
