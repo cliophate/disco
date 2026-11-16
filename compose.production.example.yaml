@@ -45,11 +45,6 @@ services:
     command: ["php", "artisan", "queue:work", "redis", "--queue=default", "--sleep=3", "--tries=3", "--timeout=120"]
     stop_grace_period: 3m
 
-  admin-queue:
-    <<: *app
-    container_name: disco-admin-queue
-    command: ["php", "artisan", "queue:work", "redis-admin", "--queue=admin", "--sleep=3", "--tries=1", "--timeout=3600"]
-    stop_grace_period: 65m
 
   scheduler:
     <<: *app

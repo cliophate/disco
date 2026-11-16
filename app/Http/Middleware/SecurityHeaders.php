@@ -19,7 +19,7 @@ class SecurityHeaders
         if (app()->isProduction()) {
             $response->headers->set(
                 'Content-Security-Policy',
-                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://media.pitchfork.com; connect-src 'self'; media-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; media-src 'none'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
             );
         }
 

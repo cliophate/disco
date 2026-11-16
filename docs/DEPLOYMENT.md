@@ -8,7 +8,6 @@ Disco is a single-owner Laravel application. This repository supplies production
 - PostgreSQL 18;
 - Redis 8 for cache, locks, and queues;
 - a default queue worker;
-- an `admin` queue worker with a timeout of at least 3,600 seconds;
 - one scheduler process running `php artisan schedule:work`, or cron invoking `php artisan schedule:run` every minute;
 - persistent storage for the complete Laravel `storage/` directory; and
 - a reachable Plex Media Server with a dedicated music library.
@@ -25,8 +24,7 @@ The edge must:
 - optionally enforce an additional identity-aware access policy or private-network/VPN access;
 - replace client-supplied `Forwarded` and `X-Forwarded-*` headers with values derived from the trusted connection;
 - forward the canonical host and HTTPS scheme;
-- limit request sizes and apply reasonable connection and request timeouts; and
-- preserve streaming and byte-range responses for original-file playback.
+- limit request sizes and apply reasonable connection and request timeouts.
 
 Disco trusts proxy headers from its immediate network. Firewalling the origin and sanitizing forwarded headers are therefore mandatory, not optional hardening.
 
@@ -83,11 +81,10 @@ For an initial metadata baseline, the normal scheduler can fill data gradually. 
 
 ## Process Examples
 
-Run the normal and long-running queues as separate supervised processes:
+Run the artwork queue and scheduler as supervised processes:
 
 ```bash
 php artisan queue:work redis --queue=default --sleep=3 --tries=3 --timeout=120
-php artisan queue:work redis-admin --queue=admin --sleep=3 --tries=1 --timeout=3600
 php artisan schedule:work
 ```
 

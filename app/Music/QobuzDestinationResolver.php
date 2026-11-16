@@ -68,6 +68,6 @@ class QobuzDestinationResolver
             return null;
         }
 
-        return ['id' => $matches[2], 'url' => 'https://qobuz.com'.rtrim($path, '/'), 'priority' => 1];
+        return ['id' => $matches[2], 'url' => $kind === 'album' ? 'https://open.qobuz.com/album/'.$matches[2] : 'https://qobuz.com'.rtrim($path, '/'), 'priority' => 1];
     }
 }

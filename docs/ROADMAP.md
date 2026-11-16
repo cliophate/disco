@@ -1,41 +1,23 @@
-# Disco Roadmap
+# Disco roadmap
 
-GitHub Issues are the source of truth for actionable work. This document records direction and workflow only; issue labels and milestones carry current status.
+The product has one job: find albums worth previewing on Qobuz, using listening history and the Plex collection.
 
-Substantial interface work must also follow the shared [UI direction](UI_DIRECTION.md). Foundation primitives should land before page-specific redesigns, and visual references are for directional research, not assets or layouts to copy.
+## Current scope
 
-## Working Agreement
+1. Find new artists through taste-weighted ListenBrainz artist radio. Exclude familiar and owned artists, enforce a seed diversity cap and explain each pick.
+2. Show personal new releases and releases by the current candidate artists.
+3. Offer unheard albums by artists the owner already plays.
 
-When asked to work on the next ready issue:
+Keep weekly batches, pass feedback and pick-state history. Prioritize import completeness and identity matching over more recommendation sources. Genre coverage is too sparse to rank with.
 
-1. Select an open issue labelled `status:ready`.
-2. Prefer `priority:high`, then `priority:medium`, then `priority:low`, then `priority:nice-to-have`.
-3. Use the lowest issue number to break ties.
-4. Never select an issue labelled `sequence:final` while any other issue remains open.
-5. Replace `status:ready` with `status:in-progress` before implementation.
-6. Keep the issue open if work is incomplete or blocked, and record the blocker.
-7. Close the issue only after its acceptance criteria and verification steps pass.
+## Follow-up evidence
 
-Status labels are mutually exclusive. An issue with unresolved dependencies must use `status:blocked`, not `status:ready`.
+Assess whether the ten-album weekly batch has enough unfamiliar artists after several synthetic-tested iterations and private owner use. Tune the lifetime-listen threshold, cooldown, popularity penalty and seed cap through environment settings. Provider failures should remain visible in admin and preserve the last successful batch.
 
-## Current Phase
+A future secondary recommendation source must satisfy the same artist exclusions, Album/EP rules, primary credit checks and repeat policy. Collaborative-filtering recording recommendations are currently removed.
 
-The current phase is public self-hosting readiness: neutral configuration, hardened images, documented deployment and recovery, automated verification, and a tested release process.
+## Boundaries
 
-## Later Direction
+No embedded player, Plex writes, library browsing, search, discography pages, biographies, narratives, credits, editorial feeds, lists, follows or notifications. Do not rebuild these as discovery prerequisites. No live-provider calls during page rendering and no live payloads in tests or source control.
 
-After editorial coverage is reliable:
-
-- Add persisted, selectable year and decade discovery lenses.
-- Model typed MusicBrainz credit relationships for credit trails and collection gaps.
-- Reassess Last.fm as a secondary similarity and tag signal after the lens pipeline exists.
-
-Discogs follows the explicit source policy in the architecture decisions. Acoustic-analysis sources and Tautulli remain deferred until a concrete issue documents the need and source policy. Copied third-party reviews remain prohibited.
-
-## UI Program
-
-The editorial interface program applies shared foundations to album and artist detail, Home activity, catalog relationships, browse controls, Discover, Artists, lenses, provenance, actions, credits, and performance. See the shared [UI direction](UI_DIRECTION.md).
-
-## Final Release Gate
-
-A stable self-hosted release requires passing application and image tests, a clean secret scan, documented backup and rollback, and a successful upgrade rehearsal against a representative private installation.
+GitHub issues track follow-up work. The [UI direction](UI_DIRECTION.md) is the visual contract; [ADR 0006](adr/0006-album-discovery.md) records the discovery pipeline.

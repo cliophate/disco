@@ -16,11 +16,9 @@ use App\Models\Release;
 use App\Models\ReleaseGroup;
 use App\Models\SourceObject;
 use App\Models\SourceProvider;
-use App\Models\User;
 use App\Music\MusicBrainz\MusicBrainzEnricher;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\TestCase;
@@ -288,19 +286,6 @@ class ReleaseEditionMigrationTest extends TestCase
         $this->assertSame('redirected', DB::table('catalog.entities')->where('id', $redirectedGroupId)->value('status'));
         $this->assertSame($canonicalGroupId, DB::table('catalog.entities')->where('id', $redirectedGroupId)->value('redirect_entity_id'));
 
-        $owner = User::query()->create([
-            'name' => 'Fixture Owner',
-            'email' => 'migration-owner@example.test',
-            'password' => Hash::make('fixture-password'),
-        ]);
-        $this->actingAs($owner)
-            ->getJson("/api/v1/albums/{$redirectedGroupId}")
-            ->assertOk()
-            ->assertJsonPath('data.id', $canonicalGroupId);
-        PlexItem::query()->where('rating_key', 'album-0')->update(['removed_at' => null]);
-        $this->getJson('/api/v1/library/albums')
-            ->assertOk()
-            ->assertJsonPath('data.0.open_in_plex_status', 'choice-required');
     }
 
     public function test_musicbrainz_converges_two_editions_on_one_canonical_release_group(): void
@@ -426,17 +411,6 @@ class ReleaseEditionMigrationTest extends TestCase
         $this->assertSame('redirected', CatalogEntity::query()->findOrFail($provisionalGroup->id)->status);
         $this->assertSame($canonicalGroup->id, CatalogEntity::query()->findOrFail($provisionalGroup->id)->redirect_entity_id);
 
-        $owner = User::query()->create([
-            'name' => 'Fixture Owner',
-            'email' => 'owner@example.test',
-            'password' => Hash::make('fixture-password'),
-        ]);
-        $this->actingAs($owner);
-        $this->getJson("/api/v1/albums/{$provisionalGroup->id}")
-            ->assertOk()
-            ->assertJsonPath('data.id', $canonicalGroup->id)
-            ->assertJsonPath('data.basis_release_id', $releaseEntity->id)
-            ->assertJsonPath('data.labels.0.name', 'Edition Label');
     }
 
     private function preparePostgres(): void

@@ -12,7 +12,6 @@ use App\Models\PlexEntityMatch;
 use App\Models\PlexItem;
 use App\Models\PlexItemGuid;
 use App\Models\PlexLibrary;
-use App\Models\PlexMediaPart;
 use App\Models\PlexServer;
 use App\Models\PlexSyncRun;
 use App\Models\Recording;
@@ -22,6 +21,7 @@ use App\Models\SourceAssertion;
 use App\Models\SourceObject;
 use App\Models\SourceProvider;
 use App\Models\SourceSnapshot;
+use App\Music\Discovery\PickStateReconciler;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -120,8 +120,7 @@ class PlexSyncService
                 'display_name' => 'Plex',
                 'policy' => [
                     'storage' => 'private',
-                    'connector' => 'direct_playback',
-                    'writes' => ['playback_timeline', 'scrobble'],
+                    'connector' => 'read_only',
                     'transcoding' => false,
                 ],
             ]);
@@ -206,10 +205,12 @@ class PlexSyncService
                 ->each(fn (string $itemId) => IngestPlexArtwork::dispatch($itemId));
         }
 
+        app(PickStateReconciler::class)->reconcile();
+
         return $counts;
     }
 
-    /** @param array{attributes:array<string,string>, guids:list<string>, media_parts:list<array<string,?string>>} $row */
+    /** @param array{attributes:array<string,string>, guids:list<string>} $row */
     private function syncItem(SourceProvider $provider, PlexLibrary $library, string $type, array $row, mixed $syncedAt): void
     {
         $attributes = $row['attributes'];
@@ -249,8 +250,6 @@ class PlexSyncService
             }
         }
 
-        $this->syncMediaParts($item, $type, $row['media_parts'], $syncedAt);
-
         $resolution = $this->resolveEntity($item, $type, $row['guids']);
         $entity = $resolution['entity'];
         if ($type === 'album') {
@@ -268,7 +267,7 @@ class PlexSyncService
                 'last_seen_at' => $syncedAt,
             ],
         );
-        $payload = ['attributes' => $attributes, 'guids' => $row['guids'], 'media_parts' => $row['media_parts']];
+        $payload = ['attributes' => $attributes, 'guids' => $row['guids']];
         $encoded = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         $payloadHash = hash('sha256', $encoded);
 
@@ -657,81 +656,6 @@ class PlexSyncService
         [$namespace, $value] = explode('://', $guid, 2);
 
         return [$namespace, $value];
-    }
-
-    /** @param list<array<string, ?string>> $parts */
-    private function syncMediaParts(PlexItem $item, string $type, array $parts, mixed $syncedAt): void
-    {
-        if ($type !== 'track') {
-            return;
-        }
-
-        $seen = [];
-        foreach ($parts as $part) {
-            $mediaId = $part['media_id'] ?? null;
-            $partId = $part['part_id'] ?? null;
-            $partKey = $part['part_key'] ?? null;
-            $size = $this->boundedInteger($part['size_bytes'] ?? null, 1, 64 * 1024 * 1024 * 1024);
-            if (! is_string($mediaId) || preg_match('/\A[1-9][0-9]{0,18}\z/D', $mediaId) !== 1
-                || ! is_string($partId) || preg_match('/\A[1-9][0-9]{0,18}\z/D', $partId) !== 1
-                || ! is_string($partKey) || ! $this->validPartKey($partKey, $partId)
-                || $size === null) {
-                continue;
-            }
-
-            $attributes = [
-                'part_key' => $partKey,
-                'container' => $this->mediaName($part['container'] ?? null),
-                'audio_codec' => $this->mediaName($part['audio_codec'] ?? null),
-                'channels' => $this->boundedInteger($part['channels'] ?? null, 1, 32),
-                'bit_depth' => $this->boundedInteger($part['bit_depth'] ?? null, 1, 64),
-                'sample_rate_hz' => $this->boundedInteger($part['sample_rate_hz'] ?? null, 1000, 768000),
-                'bitrate_kbps' => $this->boundedInteger($part['bitrate_kbps'] ?? null, 1, 100000),
-                'size_bytes' => $size,
-                'duration_ms' => $this->boundedInteger($part['duration_ms'] ?? null, 1, 24 * 60 * 60 * 1000),
-                'last_synced_at' => $syncedAt,
-            ];
-            $attributes['media_version'] = hash('sha256', json_encode([
-                $attributes['part_key'], $attributes['container'], $attributes['audio_codec'],
-                $attributes['channels'], $attributes['bit_depth'], $attributes['sample_rate_hz'],
-                $attributes['size_bytes'], $attributes['duration_ms'],
-            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
-            $stored = PlexMediaPart::query()->updateOrCreate([
-                'plex_item_id' => $item->id,
-                'media_id' => $mediaId,
-                'part_id' => $partId,
-            ], $attributes);
-            $seen[] = $stored->id;
-        }
-
-        $stale = $item->mediaParts();
-        if ($seen !== []) {
-            $stale->whereNotIn('id', $seen);
-        }
-        $stale->delete();
-    }
-
-    private function validPartKey(string $key, string $partId): bool
-    {
-        return preg_match('#\A/library/parts/([1-9][0-9]{0,18})/[1-9][0-9]{0,18}/file(?:\.[A-Za-z0-9]{1,10})?\z#D', $key, $matches) === 1
-            && hash_equals($partId, $matches[1]);
-    }
-
-    private function mediaName(?string $value): ?string
-    {
-        $value = is_string($value) ? strtolower(trim($value)) : '';
-
-        return $value !== '' && preg_match('/\A[a-z0-9][a-z0-9._-]{0,31}\z/D', $value) === 1 ? $value : null;
-    }
-
-    private function boundedInteger(?string $value, int $minimum, int $maximum): ?int
-    {
-        if (! is_string($value) || preg_match('/\A[0-9]+\z/D', $value) !== 1) {
-            return null;
-        }
-        $number = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => $minimum, 'max_range' => $maximum]]);
-
-        return is_int($number) ? $number : null;
     }
 
     private function integer(?string $value): ?int

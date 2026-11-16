@@ -23,38 +23,38 @@ class ProviderCredentialTest extends TestCase
     public function test_encrypted_overrides_are_activated_only_after_a_successful_owner_test(): void
     {
         $this->preparePostgres();
-        config()->set('services.discogs.token', 'environment-token');
+        config()->set('services.listenbrainz.token', 'environment-token');
         $owner = User::query()->create([
             'name' => 'Owner',
             'email' => 'owner@example.test',
             'password' => Hash::make('current-password'),
         ]);
         ProviderCredential::query()->create([
-            'provider' => 'discogs',
+            'provider' => 'listenbrainz',
             'credentials' => ['token' => 'current-database-token'],
             'tested_at' => now()->subDay(),
         ]);
         $tester = Mockery::mock(ProviderCredentialTester::class);
-        $tester->expects('test')->once()->with('discogs', 'rejected-token')->andThrow(new RuntimeException('rejected'));
-        $tester->expects('test')->once()->with('discogs', 'accepted-token');
+        $tester->expects('test')->once()->with('listenbrainz', 'rejected-token')->andThrow(new RuntimeException('rejected'));
+        $tester->expects('test')->once()->with('listenbrainz', 'accepted-token');
         $controller = app(ProviderCredentialController::class);
         $resolver = app(ProviderCredentialResolver::class);
 
         try {
             $controller->update(
                 $this->request($owner, ['current_password' => 'current-password', 'secret' => 'rejected-token']),
-                'discogs',
+                'listenbrainz',
                 $resolver,
                 $tester,
             );
             $this->fail('A failed provider test must reject activation.');
         } catch (ValidationException) {
-            $this->assertSame('current-database-token', ProviderCredential::query()->findOrFail('discogs')->credentials['token']);
+            $this->assertSame('current-database-token', ProviderCredential::query()->findOrFail('listenbrainz')->credentials['token']);
         }
 
         $response = $controller->update(
             $this->request($owner, ['current_password' => 'current-password', 'secret' => 'accepted-token']),
-            'discogs',
+            'listenbrainz',
             $resolver,
             $tester,
         );
@@ -62,18 +62,17 @@ class ProviderCredentialTest extends TestCase
         $this->assertSame('database', $response->getData(true)['data']['source']);
         $this->assertArrayNotHasKey('secret', $response->getData(true)['data']);
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
-        $this->assertSame('accepted-token', $resolver->resolve('discogs')['secret']);
-        $stored = (string) DB::table('app.provider_credentials')->where('provider', 'discogs')->value('credentials');
+        $this->assertSame('accepted-token', $resolver->resolve('listenbrainz')['secret']);
+        $stored = (string) DB::table('app.provider_credentials')->where('provider', 'listenbrainz')->value('credentials');
         $this->assertStringNotContainsString('accepted-token', $stored);
         $this->assertDatabaseHas('app.admin_audit_entries', [
             'owner_user_id' => $owner->id,
             'action' => 'credential_activated',
-            'subject' => 'discogs',
+            'subject' => 'listenbrainz',
         ]);
         $auditContext = (string) DB::table('app.admin_audit_entries')->where('action', 'credential_activated')->value('context');
         $this->assertStringNotContainsString('accepted-token', $auditContext);
-        ProviderCredential::query()->create([
-            'provider' => 'listenbrainz',
+        ProviderCredential::query()->updateOrCreate(['provider' => 'listenbrainz'], [
             'credentials' => ['token' => 'database-listen-token'],
             'tested_at' => now(),
         ]);
@@ -81,11 +80,11 @@ class ProviderCredentialTest extends TestCase
 
         $delete = $controller->destroy(
             $this->request($owner, ['current_password' => 'current-password']),
-            'discogs',
+            'listenbrainz',
             $resolver,
         );
         $this->assertSame([
-            'provider' => 'discogs',
+            'provider' => 'listenbrainz',
             'configured' => true,
             'source' => 'environment',
             'tested_at' => null,
@@ -93,7 +92,7 @@ class ProviderCredentialTest extends TestCase
         $this->assertDatabaseHas('app.admin_audit_entries', [
             'owner_user_id' => $owner->id,
             'action' => 'credential_removed',
-            'subject' => 'discogs',
+            'subject' => 'listenbrainz',
         ]);
     }
 

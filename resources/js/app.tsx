@@ -3,26 +3,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Shell } from './components/shell';
-import { PlaybackProvider } from './components/playback-provider';
 import { ErrorState } from './components/states';
 import { Skeleton } from './components/ui/skeleton';
 import { ApiError, api } from './lib/api';
-import { AlbumDetailPage } from './pages/album-detail';
 import { AdminPage } from './pages/admin';
-import { ArtistDetailPage } from './pages/artist-detail';
-import { ArtistsPage } from './pages/artists';
-import { BeyondPage } from './pages/beyond';
-import { DiscoverPage } from './pages/discover';
-import { HomePage } from './pages/home';
-import { HomeLensPage } from './pages/home-lens';
-import { LibraryPage } from './pages/library';
+import { ThisWeekPage } from './pages/this-week';
 import { LoginPage } from './pages/login';
-import { MetadataPage } from './pages/metadata';
-import { NotificationsPage } from './pages/notifications';
 import { NotFoundPage } from './pages/not-found';
-import { SearchPage } from './pages/search';
-import { UpcomingPage } from './pages/upcoming';
-import { WantToListenPage } from './pages/want-to-listen';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -39,27 +26,13 @@ function AuthenticatedApp() {
     if (!me.data) return <LoginPage />;
 
     return (
-        <PlaybackProvider>
-            <Shell user={me.data}>
-                <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/discover" element={<DiscoverPage />} />
-                <Route path="/discover/upcoming" element={<UpcomingPage />} />
-                <Route path="/discover/lenses/:lens" element={<HomeLensPage />} />
-                <Route path="/beyond" element={<BeyondPage />} />
-                <Route path="/library/albums" element={<LibraryPage />} />
-                <Route path="/want-to-listen" element={<WantToListenPage />} />
-                <Route path="/albums/:id" element={<AlbumDetailPage />} />
-                <Route path="/artists" element={<ArtistsPage />} />
-                <Route path="/artists/:id" element={<ArtistDetailPage />} />
-                <Route path="/search" element={<SearchPage />} />
-                <Route path="/metadata" element={<MetadataPage />} />
+        <Shell user={me.data}>
+            <Routes>
+                <Route path="/" element={<ThisWeekPage />} />
                 <Route path="/admin" element={<AdminPage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="*" element={<NotFoundPage />} />
-                </Routes>
-            </Shell>
-        </PlaybackProvider>
+            </Routes>
+        </Shell>
     );
 }
 

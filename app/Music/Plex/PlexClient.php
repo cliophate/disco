@@ -3,8 +3,6 @@
 namespace App\Music\Plex;
 
 use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use SimpleXMLElement;
@@ -12,8 +10,6 @@ use SimpleXMLElement;
 class PlexClient
 {
     private bool $artworkIdentityVerified = false;
-
-    private bool $playbackIdentityVerified = false;
 
     public function __construct(
         private readonly ?string $baseUrl = null,
@@ -62,7 +58,7 @@ class PlexClient
     }
 
     /**
-     * @return list<array{attributes:array<string,string>, guids:list<string>, media_parts:list<array<string,?string>>}>
+     * @return list<array{attributes:array<string,string>, guids:list<string>}>
      */
     public function libraryItems(string $sectionKey, int $type): array
     {
@@ -104,7 +100,6 @@ class PlexClient
                 $items[] = [
                     'attributes' => $attributes,
                     'guids' => array_values(array_unique($guids)),
-                    'media_parts' => $this->mediaParts($node),
                 ];
                 $pageCount++;
             }
@@ -117,29 +112,6 @@ class PlexClient
         } while ($offset < $total);
 
         return $items;
-    }
-
-    /** @return list<array{rating_key:string,parent_rating_key:string,grandparent_rating_key:?string,state:string}> */
-    public function activeSessions(): array
-    {
-        $root = $this->getXml('/status/sessions');
-        $sessions = [];
-        foreach ($root->Track as $track) {
-            $attributes = $this->attributes($track);
-            $player = $track->Player->count() > 0 ? $this->attributes($track->Player[0]) : [];
-            $state = $player['state'] ?? '';
-            if (! isset($attributes['ratingKey'], $attributes['parentRatingKey']) || ! in_array($state, ['playing', 'paused', 'buffering'], true)) {
-                continue;
-            }
-            $sessions[] = [
-                'rating_key' => $attributes['ratingKey'],
-                'parent_rating_key' => $attributes['parentRatingKey'],
-                'grandparent_rating_key' => $attributes['grandparentRatingKey'] ?? null,
-                'state' => $state,
-            ];
-        }
-
-        return $sessions;
     }
 
     /** @return array{body:string,mime_type:string,width:int,height:int,extension:string} */
@@ -215,58 +187,6 @@ class PlexClient
         ];
     }
 
-    public function originalPart(string $path, string $expectedPartId, ?string $range, string $mimeType): Response
-    {
-        if (preg_match('#\A/library/parts/([1-9][0-9]{0,18})/[1-9][0-9]{0,18}/file(?:\.[A-Za-z0-9]{1,10})?\z#D', $path, $matches) !== 1
-            || ! hash_equals($expectedPartId, $matches[1])) {
-            throw new RuntimeException('Plex returned an invalid media part path.');
-        }
-        $this->verifyPlaybackIdentity();
-
-        $headers = ['X-Plex-Token' => $this->resolvedToken()];
-        if ($range !== null) {
-            $headers['Range'] = $range;
-        }
-
-        return $this->request(retry: false)
-            ->accept($mimeType)
-            ->withHeaders($headers)
-            ->withOptions(['stream' => true, 'decode_content' => false, 'read_timeout' => 30])
-            ->timeout(30)
-            ->get($path);
-    }
-
-    public function playbackTimeline(string $ratingKey, string $state, int $positionMs, int $durationMs, string $clientIdentifier): void
-    {
-        if (preg_match('/\A[1-9][0-9]{0,18}\z/D', $ratingKey) !== 1
-            || ! in_array($state, ['playing', 'paused', 'stopped'], true)
-            || $positionMs < 0 || $durationMs < 1 || $positionMs > $durationMs
-            || preg_match('/\Adisco-[a-f0-9]{32}\z/D', $clientIdentifier) !== 1) {
-            throw new RuntimeException('Invalid Plex playback timeline state.');
-        }
-        $this->verifyPlaybackIdentity();
-        $this->playbackRequest($clientIdentifier)->get('/:/timeline', [
-            'ratingKey' => $ratingKey,
-            'key' => "/library/metadata/{$ratingKey}",
-            'state' => $state,
-            'time' => $positionMs,
-            'duration' => $durationMs,
-        ])->throw();
-    }
-
-    public function scrobble(string $ratingKey, string $clientIdentifier): void
-    {
-        if (preg_match('/\A[1-9][0-9]{0,18}\z/D', $ratingKey) !== 1
-            || preg_match('/\Adisco-[a-f0-9]{32}\z/D', $clientIdentifier) !== 1) {
-            throw new RuntimeException('Invalid Plex scrobble target.');
-        }
-        $this->verifyPlaybackIdentity();
-        $this->playbackRequest($clientIdentifier)->get('/:/scrobble', [
-            'key' => $ratingKey,
-            'identifier' => 'com.plexapp.plugins.library',
-        ])->throw();
-    }
-
     private function verifyArtworkIdentity(): void
     {
         if ($this->artworkIdentityVerified) {
@@ -283,29 +203,6 @@ class PlexClient
         $this->artworkIdentityVerified = true;
     }
 
-    private function verifyPlaybackIdentity(): void
-    {
-        if ($this->playbackIdentityVerified) {
-            return;
-        }
-        $expected = (string) config('services.plex.expected_machine_identifier');
-        if ($expected === '') {
-            throw new RuntimeException('PLEX_EXPECTED_MACHINE_IDENTIFIER is required for playback.');
-        }
-        $verificationKey = 'disco:plex-playback-origin:'.hash('sha256', $this->resolvedBaseUrl()."\0".$expected);
-        if (Cache::get($verificationKey) === true) {
-            $this->playbackIdentityVerified = true;
-
-            return;
-        }
-        if (! hash_equals($expected, $this->identity()['machine_identifier'])) {
-            throw new RuntimeException('Plex playback origin machine identifier mismatch.');
-        }
-        Cache::put($verificationKey, true, 300);
-        $this->playbackIdentityVerified = true;
-    }
-
-    /** @param array<string, int|string> $query */
     private function getXml(string $path, array $query = [], bool $authenticated = true): SimpleXMLElement
     {
         $request = $this->request();
@@ -366,19 +263,6 @@ class PlexClient
         return $retry ? $request->retry(2, 250) : $request;
     }
 
-    private function playbackRequest(string $clientIdentifier): PendingRequest
-    {
-        return $this->request(retry: false)->timeout(10)->connectTimeout(5)->withHeaders([
-            'X-Plex-Token' => $this->resolvedToken(),
-            'X-Plex-Product' => 'Disco',
-            'X-Plex-Version' => '0.1',
-            'X-Plex-Client-Identifier' => $clientIdentifier,
-            'X-Plex-Platform' => 'Web',
-            'X-Plex-Device' => 'Disco',
-            'X-Plex-Device-Name' => 'Disco',
-        ]);
-    }
-
     private function resolvedBaseUrl(): string
     {
         return rtrim($this->baseUrl ?? (string) config('services.plex.url'), '/');
@@ -404,41 +288,5 @@ class PlexClient
         }
 
         return $attributes;
-    }
-
-    /** @return list<array<string, ?string>> */
-    private function mediaParts(SimpleXMLElement $node): array
-    {
-        $parts = [];
-        foreach ($node->Media as $media) {
-            $mediaAttributes = $this->attributes($media);
-            foreach ($media->Part as $part) {
-                $partAttributes = $this->attributes($part);
-                $audio = [];
-                foreach ($part->Stream as $stream) {
-                    $streamAttributes = $this->attributes($stream);
-                    if (($streamAttributes['streamType'] ?? null) === '2') {
-                        $audio = $streamAttributes;
-                        break;
-                    }
-                }
-
-                $parts[] = [
-                    'media_id' => $mediaAttributes['id'] ?? null,
-                    'part_id' => $partAttributes['id'] ?? null,
-                    'part_key' => $partAttributes['key'] ?? null,
-                    'container' => $partAttributes['container'] ?? $mediaAttributes['container'] ?? null,
-                    'audio_codec' => $audio['codec'] ?? $mediaAttributes['audioCodec'] ?? null,
-                    'channels' => $audio['channels'] ?? $mediaAttributes['audioChannels'] ?? null,
-                    'bit_depth' => $audio['bitDepth'] ?? $mediaAttributes['bitDepth'] ?? null,
-                    'sample_rate_hz' => $audio['samplingRate'] ?? $audio['sampleRate'] ?? $mediaAttributes['audioSampleRate'] ?? null,
-                    'bitrate_kbps' => $audio['bitrate'] ?? $mediaAttributes['bitrate'] ?? null,
-                    'size_bytes' => $partAttributes['size'] ?? null,
-                    'duration_ms' => $partAttributes['duration'] ?? $mediaAttributes['duration'] ?? null,
-                ];
-            }
-        }
-
-        return $parts;
     }
 }

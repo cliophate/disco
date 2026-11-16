@@ -73,15 +73,6 @@ return [
             'after_commit' => false,
         ],
 
-        'redis-admin' => [
-            'driver' => 'redis',
-            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue' => 'admin',
-            'retry_after' => 3900,
-            'block_for' => null,
-            'after_commit' => false,
-        ],
-
         'deferred' => [
             'driver' => 'deferred',
         ],

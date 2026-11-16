@@ -35,6 +35,12 @@ class ArtistPreferencePolicy
 
     public function __construct(private readonly CanonicalEntityResolver $resolver) {}
 
+    public function allowsIdentity(?string $mbid, string $name): bool
+    {
+        return ! in_array(strtolower($mbid ?? ''), self::SPECIAL_MBIDS, true)
+            && ! in_array(Identity::name($name), self::SPECIAL_NAMES, true);
+    }
+
     public function allowsId(string $artistId): bool
     {
         if (array_key_exists($artistId, $this->cache)) {
@@ -47,7 +53,7 @@ class ArtistPreferencePolicy
 
     public function allows(CatalogEntity $artist): bool
     {
-        if ($artist->kind !== 'agent' || $artist->status !== 'active') {
+        if ($artist->kind !== 'agent' || $artist->status !== 'active' || ! $this->allowsIdentity(null, $artist->canonical_name)) {
             return false;
         }
 

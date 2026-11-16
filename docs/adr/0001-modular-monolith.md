@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted for the initial implementation.
+Accepted. ADR 0006 narrows the modules to discovery, catalog, providers, library, activity and owner administration.
 
 ## Decision
 
-Disco is one Laravel application with explicit Catalog, Providers, Resolution, Library, Activity, Personal, Discovery, Search, and Operations module boundaries. React consumes a versioned same-origin REST API.
+Disco is one Laravel application with catalog, provider, resolution, library, activity, discovery and owner administration modules. React consumes a versioned same-origin REST API.
 
 PostgreSQL is authoritative. Redis is limited to queues, caches, rate limits, and short locks. A graph projection may be derived in PostgreSQL; a graph database and microservices are not justified by the collection size or query depth.
 

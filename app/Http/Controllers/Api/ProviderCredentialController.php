@@ -125,7 +125,7 @@ class ProviderCredentialController extends Controller
 
     private function credentialKey(string $provider): string
     {
-        return $provider === 'theaudiodb' ? 'api_key' : 'token';
+        return 'token';
     }
 
     /** @param array<string, mixed> $status
