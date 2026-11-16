@@ -135,7 +135,7 @@ class ListenBrainzClientTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'days=30')
             && str_contains($request->url(), 'past=true')
             && str_contains($request->url(), 'future=true')
-            && ! $request->hasHeader('Authorization'));
+            && $request->hasHeader('Authorization', 'Token fixture-secret-token'));
     }
 
     public function test_fresh_releases_skip_records_without_exact_identities(): void

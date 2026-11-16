@@ -116,7 +116,7 @@ class ListenBrainzClient
             throw new RuntimeException('A fresh-release direction is required.');
         }
 
-        $httpResponse = $this->request(authenticated: false)->get('/1/explore/fresh-releases/', [
+        $httpResponse = $this->publicRequest()->get('/1/explore/fresh-releases/', [
             'release_date' => $releaseDate->toDateString(),
             'days' => $days,
             'sort' => 'release_date',
@@ -140,7 +140,7 @@ class ListenBrainzClient
             throw new RuntimeException('Personal fresh-release days must be between 1 and 90.');
         }
         $username = $this->resolvedUsername();
-        $httpResponse = $this->request(authenticated: false)->get('/1/user/'.rawurlencode($username).'/fresh_releases', [
+        $httpResponse = $this->publicRequest()->get('/1/user/'.rawurlencode($username).'/fresh_releases', [
             'days' => $days, 'past' => 'true', 'future' => 'true',
         ]);
         if ($httpResponse->status() === 204) {
@@ -162,7 +162,7 @@ class ListenBrainzClient
         if (! Str::isUuid($artistMbid)) {
             throw new RuntimeException('Invalid radio seed MBID.');
         }
-        $result = $this->decode($this->request(authenticated: false)->get('/1/lb-radio/artist/'.$artistMbid, [
+        $result = $this->decode($this->publicRequest()->get('/1/lb-radio/artist/'.$artistMbid, [
             'mode' => 'medium', 'max_similar_artists' => (int) config('discovery.radio_artist_limit', 30),
             'max_recordings_per_artist' => 1, 'pop_begin' => 0, 'pop_end' => 100,
         ])->throw());
@@ -187,7 +187,7 @@ class ListenBrainzClient
     {
         $result = [];
         foreach (array_chunk($mbids, 100) as $chunk) {
-            $rows = $this->decode($this->request(authenticated: false)->post('/1/popularity/artist', ['artist_mbids' => $chunk])->throw(), true);
+            $rows = $this->decode($this->publicRequest()->post('/1/popularity/artist', ['artist_mbids' => $chunk])->throw(), true);
             foreach ($rows as $row) {
                 if (is_array($row) && in_array($row['artist_mbid'] ?? null, $chunk, true)
                     && is_int($row['total_user_count'] ?? null) && $row['total_user_count'] >= 0) {
@@ -205,7 +205,7 @@ class ListenBrainzClient
             throw new RuntimeException('Invalid top-release-groups artist MBID.');
         }
 
-        return $this->decode($this->request(authenticated: false)->get('/1/popularity/top-release-groups-for-artist/'.$artistMbid)->throw(), true);
+        return $this->decode($this->publicRequest()->get('/1/popularity/top-release-groups-for-artist/'.$artistMbid)->throw(), true);
     }
 
     private function normalizeFreshReleases(array $payload, CarbonImmutable $releaseDate, int $days, bool $past, bool $future): array
@@ -312,6 +312,12 @@ class ListenBrainzClient
         }
 
         return $payload;
+    }
+
+    // ListenBrainz refuses some uncached public reads without a token, so send it when one is configured.
+    private function publicRequest(): PendingRequest
+    {
+        return $this->request(authenticated: $this->configured());
     }
 
     private function request(bool $authenticated = true): PendingRequest

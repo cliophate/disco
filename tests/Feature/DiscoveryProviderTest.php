@@ -97,4 +97,15 @@ class DiscoveryProviderTest extends TestCase
             Http::assertSentCount(3);
         }
     }
+
+    public function test_public_reads_send_the_token_when_one_is_configured(): void
+    {
+        config()->set('services.listenbrainz.url', 'https://listenbrainz.test');
+        config()->set('services.listenbrainz.username', 'fixture-user');
+        config()->set('services.listenbrainz.token', 'fixture-secret-token');
+        Http::fake(['https://listenbrainz.test/*' => Http::response([], 200, ['Content-Type' => 'application/json'])]);
+        app(ListenBrainzClient::class)->topReleaseGroups($this->candidate);
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), '/1/popularity/top-release-groups-for-artist/')
+            && $request->hasHeader('Authorization', 'Token fixture-secret-token'));
+    }
 }
