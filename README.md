@@ -13,7 +13,7 @@ One page, in priority order:
 - **New releases.** Personal ListenBrainz releases plus releases by artists in the current discovery pool. Refreshed daily, with released and upcoming dates.
 - **More from artists you play.** Unheard albums by high-taste artists, refreshed weekly.
 
-Each pick has local cover art when available, a plain reason, an exact Qobuz album link or search fallback, a Passed action, and New, In Plex or Played status. Earlier unresolved picks stay in a collapsed list. Passing a new-artist pick suppresses the artist; other passes suppress the album. History prevents album repeats.
+Each pick has local cover art when available, a plain reason, an exact Qobuz album link or search fallback, a Passed action, and New, In Plex or Played status. Earlier unresolved weekly picks stay in a collapsed list. New releases stay in one list across daily batches, from 30 days ago into the future. Passing a new-artist pick suppresses the artist; other passes suppress the album. History prevents album repeats.
 
 Plex sync retains server and library identity checks. MusicBrainz supplies exact identities and album types. Cover Art Archive and Plex artwork use the existing local cache. Owner admin contains provider credentials and pipeline status.
 
@@ -74,7 +74,7 @@ php artisan disco:plex-artwork --type=artist
 php artisan disco:musicbrainz-enrich
 ```
 
-Configure ListenBrainz with `LISTENBRAINZ_USERNAME` and `LISTENBRAINZ_TOKEN`, then import history. The full import backfills derived MusicBrainz artist and release-group identities without changing immutable listening events.
+Configure ListenBrainz with `LISTENBRAINZ_USERNAME` and `LISTENBRAINZ_TOKEN`, then import history. The full import backfills derived MusicBrainz artist names, artist IDs and release-group identities without changing immutable listening events.
 
 ```bash
 php artisan disco:listenbrainz-sync --full
@@ -85,13 +85,13 @@ php artisan disco:discovery-reconcile
 php artisan disco:discovery-artwork
 ```
 
-Completed batches are idempotent for their UTC week or day. Failed runs can be retried with the same command. Empty batches with no identified seeds can be retried after importing history or enriching owned artists. The current batch replaces the current view, while earlier unresolved picks remain available.
+Completed batches are idempotent for their UTC week or day. Failed runs can be retried with the same command. Empty batches with no identified seeds can be retried after importing history or enriching owned artists. Weekly batches replace the current view, while earlier unresolved picks remain available. Daily new-release batches add to the rolling release list.
 
 The UTC schedule runs Plex sync hourly, ListenBrainz import every 15 minutes and a full import Monday at 01:37, MusicBrainz enrichment daily at 03:00, new artists Monday at 05:00, new releases daily at 07:00, and more albums Monday at 08:00. Plex sync and ListenBrainz import reconcile pick states on completion. Plex artwork retries run daily at 02:30 and discovery cover retries at 07:45. Newly released albums retry covers even if an earlier upcoming lookup was missing.
 
 The incremental overlap defaults to 172800 seconds, or 48 hours. Fingerprints deduplicate repeated listens. Increase `LISTENBRAINZ_OVERLAP_SECONDS` if upstream batches arrive later. All application and database timestamps use UTC; `APP_TIMEZONE` no longer overrides storage time.
 
-[`.env.example`](.env.example) documents batch size, seed count, lifetime-listen threshold, repeat cooldown, seed diversity cap and artist-popularity penalty. Seeds receive 0.1 points per listen, plus 1 within 365 days and 2 within 90 days. Plex play contributions use the larger of Plex and ListenBrainz scores to limit double counting.
+[`.env.example`](.env.example) documents batch size, seed count, lifetime-listen threshold, repeat cooldown, seed diversity cap artist listener cap, popularity threshold and the separate MusicBrainz call budget for familiar artists. Unknown popularity is neutral. Known counts above 50000 are excluded by default, and remaining scores divide by `sqrt(1 + listeners / 5000)`. Seeds receive 0.1 points per listen, plus 1 within 365 days and 2 within 90 days. Plex play contributions use the larger of Plex and ListenBrainz scores to limit double counting.
 
 ## Production
 

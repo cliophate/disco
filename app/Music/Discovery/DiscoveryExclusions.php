@@ -37,13 +37,13 @@ class DiscoveryExclusions
             || isset($this->recentArtists[$mbid]) || isset($this->recentNames[Identity::name($name)]);
     }
 
-    public function album(string $mbid, string $artist, string $title, bool $unheard = false, ?string $artistMbid = null): bool
+    public function album(string $mbid, string $artist, string $title, ?string $artistMbid = null): bool
     {
         return $this->passed('artist', $artistMbid ?? '', Identity::name($artist))
             || $this->owned->album($mbid, $artist, $title) !== null
             || $this->passed('album', $mbid, Identity::album($artist, $title))
             || isset($this->pickedAlbums[$mbid])
-            || ($unheard && $this->taste->heardAlbum($mbid, $artist, $title));
+            || $this->taste->heardAlbum($mbid, $artist, $title);
     }
 
     private function passed(string $scope, string $mbid, string $name): bool

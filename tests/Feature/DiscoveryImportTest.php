@@ -63,10 +63,12 @@ class DiscoveryImportTest extends DiscoveryTestCase
         app(ListenBrainzImporter::class)->import(full: true);
         $event = ListeningEvent::query()->firstOrFail();
         $this->assertNull($event->release_group_mbid);
-        $this->fakeListens([$this->row($timestamp, ['artist_mbids' => [$this->mbid(1)], 'release_group_mbid' => $this->mbid(2)])]);
+        $this->fakeListens([$this->row($timestamp, ['artists' => [['artist_mbid' => $this->mbid(1), 'artist_credit_name' => 'Mapped Artist'], ['artist_mbid' => $this->mbid(3), 'artist_credit_name' => 'Collaborator']], 'release_group_mbid' => $this->mbid(2)])]);
         app(ListenBrainzImporter::class)->import(full: true);
         $identity = DB::table('activity.listen_identities')->where('listening_event_id', $event->id)->first();
-        $this->assertSame([$this->mbid(1)], json_decode($identity->artist_mbids, true));
+        $this->assertSame([$this->mbid(1), $this->mbid(3)], json_decode($identity->artist_mbids, true));
+        $this->assertSame([$this->mbid(1) => 'Mapped Artist', $this->mbid(3) => 'Collaborator'], json_decode($identity->artist_names, true));
+        $this->assertSame(['Mapped Artist', 'Collaborator'], array_column(app(TasteProfile::class)->load()->seeds(), 'name'));
         $this->assertSame($this->mbid(2), $identity->release_group_mbid);
         $this->assertNull($event->fresh()->release_group_mbid);
         $this->assertSame(1, ListeningEvent::query()->count());

@@ -32,7 +32,7 @@ Schedule::command('disco:listenbrainz-sync --full')->weeklyOn(1, '01:37')->witho
 Schedule::command('disco:musicbrainz-enrich --limit=50')->dailyAt('03:00')->withoutOverlapping(120)->onOneServer();
 Schedule::command('disco:plex-artwork --failed-only')->dailyAt('02:30')->withoutOverlapping()->onOneServer();
 Schedule::command('disco:artwork-prune --grace-days=7')->weeklyOn(1, '04:00')->withoutOverlapping()->onOneServer();
-Schedule::command('disco:discovery-new-artists')->weeklyOn(1, '05:00')->withoutOverlapping(360)->onOneServer();
-Schedule::command('disco:discovery-new-releases')->dailyAt('07:00')->withoutOverlapping(360)->onOneServer();
-Schedule::command('disco:discovery-more')->weeklyOn(1, '08:00')->withoutOverlapping(360)->onOneServer();
+Schedule::command('disco:discovery-new-artists')->weeklyOn(1, '05:00')->withoutOverlapping(60)->onOneServer();
+Schedule::command('disco:discovery-new-releases')->dailyAt('07:00')->withoutOverlapping(60)->onOneServer();
+Schedule::command('disco:discovery-more')->weeklyOn(1, '08:00')->withoutOverlapping(60)->onOneServer();
 Schedule::command('disco:discovery-artwork')->dailyAt('07:45')->withoutOverlapping(120)->onOneServer();

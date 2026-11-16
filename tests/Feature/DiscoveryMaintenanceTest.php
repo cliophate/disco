@@ -40,6 +40,9 @@ class DiscoveryMaintenanceTest extends DiscoveryTestCase
         $this->assertSame('0 5 * * 1', $events['disco:discovery-new-artists']->expression);
         $this->assertSame('0 7 * * *', $events['disco:discovery-new-releases']->expression);
         $this->assertSame('0 8 * * 1', $events['disco:discovery-more']->expression);
+        foreach (['new-artists', 'new-releases', 'more'] as $section) {
+            $this->assertSame(60, $events['disco:discovery-'.$section]->expiresAt);
+        }
         foreach ($events as $event) {
             $this->assertTrue($event->withoutOverlapping);
             $this->assertTrue($event->onOneServer);

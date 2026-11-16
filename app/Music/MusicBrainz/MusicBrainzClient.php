@@ -2,6 +2,7 @@
 
 namespace App\Music\MusicBrainz;
 
+use App\Music\Discovery\DiscoveryProviderStats;
 use App\Music\Http\BoundedResponseBody;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
@@ -183,10 +184,23 @@ class MusicBrainzClient
      */
     private function request(string $path, array $query, int $maxBytes = 5242880): array
     {
+        $stats = app(DiscoveryProviderStats::class);
+        try {
+            return $this->performRequest($path, $query, $maxBytes);
+        } catch (Throwable $exception) {
+            $endpoint = str_replace('-', '_', explode('/', trim($path, '/'))[0]);
+            $stats->failure('musicbrainz.'.$endpoint, $exception);
+            throw $exception;
+        }
+    }
+
+    private function performRequest(string $path, array $query, int $maxBytes): array
+    {
         $timeout = (int) config('services.musicbrainz.timeout', 30);
         $lockSeconds = max(180, 3 * (3 * $timeout + 10) + 10);
         [$response, $body] = Cache::lock('disco:musicbrainz:request', $lockSeconds)->block($lockSeconds, function () use ($maxBytes, $path, $query, $timeout) {
             [$response, $body] = retry(3, function () use ($maxBytes, $path, $query, $timeout): array {
+                app(DiscoveryProviderStats::class)->musicBrainzCall();
                 $response = Http::baseUrl($this->baseUrl())
                     ->acceptJson()
                     ->withUserAgent((string) config('services.musicbrainz.user_agent'))

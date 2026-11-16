@@ -24,6 +24,15 @@ class DiscoveryController extends Controller
             $current = $batch === null ? collect() : (clone $query)->where('batch_id', $batch->id)->orderBy('position')->get();
             $earlier = $batch === null ? collect() : (clone $query)->where('batch_id', '!=', $batch->id)
                 ->where('state', '!=', 'played')->latest('created_at')->get();
+            if ($section === 'new_releases') {
+                $today = now()->toDateString();
+                $current = (clone $query)->where('state', '!=', 'played')
+                    ->where('release_date', '>=', now()->subDays(30)->toDateString())
+                    ->orderByRaw('CASE WHEN release_date <= ? THEN 0 ELSE 1 END', [$today])
+                    ->orderByRaw('CASE WHEN release_date <= ? THEN release_date END DESC', [$today])
+                    ->orderBy('release_date')->orderBy('id')->get();
+                $earlier = collect();
+            }
             $stale = $batch !== null && ($batch->period->lt($section === 'new_releases' ? now()->startOfDay() : now()->startOfWeek())
                 || $latestAttempt?->status === 'failed' || ($batch->summary['provider_failures'] ?? 0) > 0);
             $message = ! $listenBrainz->configured() ? 'ListenBrainz not configured. Add your credentials in admin.'

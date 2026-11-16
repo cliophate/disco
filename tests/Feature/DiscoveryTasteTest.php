@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Music\Discovery\TasteProfile;
+use Illuminate\Support\Facades\DB;
 use Tests\DiscoveryTestCase;
 
 class DiscoveryTasteTest extends DiscoveryTestCase
@@ -53,5 +54,26 @@ class DiscoveryTasteTest extends DiscoveryTestCase
         $this->assertTrue($taste->heardAlbum($this->mbid(11), 'Renamed artist', 'Renamed album'));
         $this->assertTrue($taste->heardAlbum($this->mbid(12), 'ARTIST', 'Second Album'));
         $this->assertFalse($taste->heardAlbum($this->mbid(13), 'Artist', 'Unheard'));
+    }
+
+    public function test_each_mbid_uses_its_mapped_name_then_catalog_then_single_credit(): void
+    {
+        $this->artist('Catalog One', $this->mbid(1));
+        $this->artist('Catalog Two', $this->mbid(2));
+        $event = $this->listen('Whole credit', $this->mbid(1), album: 'Shared album');
+        DB::table('activity.listen_identities')->where('listening_event_id', $event->id)->update([
+            'artist_mbids' => json_encode([$this->mbid(1), $this->mbid(2), $this->mbid(3)]),
+            'artist_names' => json_encode([$this->mbid(1) => 'Mapped One']),
+        ]);
+        $this->listen('Single credit', $this->mbid(4));
+        $this->listen('Wrong catalog alias', $this->mbid(2));
+        $taste = app(TasteProfile::class)->load();
+        $this->assertSame('Mapped One', $taste->artists[$this->mbid(1)]['name']);
+        $this->assertSame('Catalog Two', $taste->artists[$this->mbid(2)]['name']);
+        $this->assertSame('Single credit', $taste->artists[$this->mbid(4)]['name']);
+        $this->assertArrayNotHasKey($this->mbid(3), $taste->artists);
+        $this->assertSame(2, $taste->lifetimeListens($this->mbid(2), 'Catalog Two'));
+        $this->assertTrue($taste->heardAlbum($this->mbid(99), 'Mapped One', 'Shared album'));
+        $this->assertTrue($taste->heardAlbum($this->mbid(99), 'Catalog Two', 'Shared album'));
     }
 }

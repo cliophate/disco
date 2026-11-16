@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Music\Discovery\DiscoveryProviderStats;
+use App\Music\Discovery\ProviderCallBudgetExceeded;
 use App\Music\ListenBrainz\ListenBrainzClient;
+use App\Music\MusicBrainz\MusicBrainzClient;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -57,5 +61,40 @@ class DiscoveryProviderTest extends TestCase
     {
         $this->expectExceptionMessage('between 1 and 90');
         app(ListenBrainzClient::class)->userFreshReleases(91);
+    }
+
+    public function test_musicbrainz_failure_categories_keep_endpoint_and_status_without_urls(): void
+    {
+        config()->set('services.musicbrainz.url', 'https://musicbrainz.test/ws/2');
+        $stats = app(DiscoveryProviderStats::class);
+        $stats->start();
+        Http::fake(['https://musicbrainz.test/*' => Http::response([], 404)]);
+        try {
+            app(MusicBrainzClient::class)->entity('release', $this->seed);
+            $this->fail('The request should fail.');
+        } catch (RequestException) {
+            $this->assertSame(['musicbrainz.release:404' => 1], $stats->failures);
+            $this->assertSame(1, $stats->musicBrainzCalls);
+        }
+    }
+
+    public function test_actual_request_budget_counts_browse_pages_and_retries(): void
+    {
+        config()->set('services.musicbrainz.url', 'https://musicbrainz.test/ws/2');
+        config()->set('services.musicbrainz.rate_interval_ms', 0);
+        $stats = app(DiscoveryProviderStats::class);
+        $stats->start(3);
+        Http::fakeSequence()->push(['release-groups' => [['id' => $this->candidate]], 'release-group-count' => 2], 200, ['Content-Type' => 'application/json'])
+            ->push(['release-groups' => [['id' => $this->seed]], 'release-group-count' => 2], 200, ['Content-Type' => 'application/json'])
+            ->push([], 503);
+        $groups = app(MusicBrainzClient::class)->artistReleaseGroups($this->seed, 1);
+        $this->assertSame(2, $groups['pages']);
+        try {
+            app(MusicBrainzClient::class)->entity('release', $this->candidate);
+            $this->fail('The retry should exhaust the budget.');
+        } catch (ProviderCallBudgetExceeded) {
+            $this->assertSame(3, $stats->musicBrainzCalls);
+            Http::assertSentCount(3);
+        }
     }
 }

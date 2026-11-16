@@ -37,7 +37,7 @@ function Section({ section }: { section: DiscoverySection }) {
         </div>
         {section.message && <p role={section.stale ? 'status' : undefined} className="mb-8 max-w-2xl border-l-2 border-coral py-3 pl-4 text-sm leading-6 text-fog">{section.message}</p>}
         <div className="grid grid-cols-1 gap-x-7 gap-y-12 min-[420px]:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">{section.picks.map(pick => <PickCard key={pick.id} pick={pick} showRelease={section.key === 'new_releases'} />)}</div>
-        {section.earlier.length > 0 && <details className="mt-10 border-t border-line pt-2"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Earlier · {section.earlier.length}</summary><div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-12 min-[420px]:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">{section.earlier.map(pick => <PickCard key={pick.id} pick={pick} showRelease={section.key === 'new_releases'} />)}</div></details>}
+        {section.key !== 'new_releases' && section.earlier.length > 0 && <details className="mt-10 border-t border-line pt-2"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Earlier · {section.earlier.length}</summary><div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-12 min-[420px]:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">{section.earlier.map(pick => <PickCard key={pick.id} pick={pick} showRelease={section.key === 'new_releases'} />)}</div></details>}
     </section>;
 }
 

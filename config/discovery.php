@@ -7,10 +7,11 @@ return [
     'lifetime_listen_threshold' => max(0, (int) env('DISCOVERY_LIFETIME_LISTEN_THRESHOLD', 5)),
     'repeat_weeks' => max(1, (int) env('DISCOVERY_REPEAT_WEEKS', 12)),
     'seed_cap' => max(1, (int) env('DISCOVERY_SEED_CAP', 2)),
-    'popularity_penalty' => max(0, (float) env('DISCOVERY_POPULARITY_PENALTY', 0.5)),
-    'popular_listener_threshold' => max(1, (int) env('DISCOVERY_POPULAR_LISTENER_THRESHOLD', 10000)),
+    'max_listener_count' => max(0, (int) env('DISCOVERY_MAX_LISTENER_COUNT', 50000)),
+    'popular_listener_threshold' => max(1, (int) env('DISCOVERY_POPULAR_LISTENER_THRESHOLD', 5000)),
     'fresh_days' => min(90, max(1, (int) env('DISCOVERY_FRESH_DAYS', 30))),
     'album_lookup_limit' => min(200, max(10, (int) env('DISCOVERY_ALBUM_LOOKUP_LIMIT', 50))),
+    'more_musicbrainz_call_limit' => max(1, (int) env('DISCOVERY_MORE_MUSICBRAINZ_CALL_LIMIT', 150)),
     'excluded_secondary_types' => [
         'compilation', 'live', 'remix', 'dj-mix', 'demo', 'interview',
         'spokenword', 'audiobook', 'audio drama', 'mixtape/street',

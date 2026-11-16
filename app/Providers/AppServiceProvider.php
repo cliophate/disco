@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Music\Admin\ProviderCredentialResolver;
+use App\Music\Discovery\DiscoveryProviderStats;
+use App\Music\Discovery\TasteProfile;
 use App\Music\ListenBrainz\ListenBrainzClient;
 use App\Music\Plex\PlexClient;
 use Illuminate\Support\Facades\Gate;
@@ -18,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(ProviderCredentialResolver::class);
+        $this->app->scoped(DiscoveryProviderStats::class);
+        $this->app->scoped(TasteProfile::class);
 
         $this->app->scoped(PlexClient::class, fn ($app): PlexClient => new PlexClient(
             token: $app->make(ProviderCredentialResolver::class)->resolve('plex')['secret'],

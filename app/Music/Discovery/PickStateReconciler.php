@@ -13,7 +13,7 @@ class PickStateReconciler
         $owned = new OwnedLibrary;
         $this->taste->load();
         $changed = 0;
-        foreach (DiscoveryPick::query()->where('state', '!=', 'played')->get() as $pick) {
+        foreach (DiscoveryPick::query()->where('state', '!=', 'played')->lazyById(250) as $pick) {
             $album = $owned->album($pick->release_group_mbid, $pick->artist_name, $pick->title);
             $heard = $this->taste->heardAlbum($pick->release_group_mbid, $pick->artist_name, $pick->title);
             $updates = [];

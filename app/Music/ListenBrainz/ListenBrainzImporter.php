@@ -398,11 +398,20 @@ class ListenBrainzImporter
             $track = $listen['track_metadata'];
             $additional = $track['additional_info'] ?? [];
             $mapping = $track['mbid_mapping'] ?? [];
+            $names = [];
+            foreach (is_array($mapping['artists'] ?? null) ? $mapping['artists'] : [] as $artist) {
+                $mbid = $this->uuid($artist['artist_mbid'] ?? null);
+                $name = $artist['artist_credit_name'] ?? null;
+                if ($mbid !== null && is_string($name) && trim($name) !== '') {
+                    $names[$mbid] = trim($name);
+                }
+            }
             $row = $this->eventRow($account, $snapshot, $listen, $retrievedAt);
             $identities[$row['fingerprint']] = [
                 'artist_mbids' => json_encode(Identity::mbids([
-                    ...Identity::mbids($additional['artist_mbids'] ?? []), ...Identity::mbids($mapping['artist_mbids'] ?? []),
+                    ...Identity::mbids($additional['artist_mbids'] ?? []), ...Identity::mbids($mapping['artist_mbids'] ?? []), ...array_keys($names),
                 ]), JSON_THROW_ON_ERROR),
+                'artist_names' => json_encode((object) $names, JSON_THROW_ON_ERROR),
                 'release_group_mbid' => $row['release_group_mbid'],
             ];
         }

@@ -24,6 +24,14 @@ describe('This week', () => {
         expect(earlier).toHaveAttribute('open');
         expect(screen.getByText(/Upcoming/)).toBeInTheDocument();
     });
+    it('keeps new releases in one list without an Earlier disclosure', async () => {
+        vi.mocked(api.discovery).mockResolvedValue([{ key: 'new_releases', generated_at: null, stale: false, message: null, picks: [pick], earlier: [{ ...pick, id: 'old', title: 'Old release' }] }]);
+        show(<ThisWeekPage />);
+        await screen.findByRole('heading', { name: 'New releases' });
+        expect(screen.getByRole('heading', { name: 'Synthetic album' })).toBeInTheDocument();
+        expect(screen.queryByText(/Earlier/)).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Old release' })).not.toBeInTheDocument();
+    });
     it('shows the plain missing-configuration state', async () => {
         vi.mocked(api.discovery).mockResolvedValue([{ key: 'new_artists', generated_at: null, stale: false, message: 'ListenBrainz not configured. Add your credentials in admin.', picks: [], earlier: [] }]);
         show(<ThisWeekPage />);
