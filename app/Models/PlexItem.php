@@ -53,9 +53,4 @@ class PlexItem extends Model
     {
         return $this->hasOne(PlexItemArtwork::class, 'plex_item_id');
     }
-
-    public function mediaParts(): HasMany
-    {
-        return $this->hasMany(PlexMediaPart::class, 'plex_item_id');
-    }
 }

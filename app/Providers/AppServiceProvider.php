@@ -4,10 +4,7 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Music\Admin\ProviderCredentialResolver;
-use App\Music\Descriptions\TheAudioDbClient;
-use App\Music\Discogs\DiscogsClient;
 use App\Music\ListenBrainz\ListenBrainzClient;
-use App\Music\Notifications\GotifyClient;
 use App\Music\Plex\PlexClient;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -28,15 +25,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(ListenBrainzClient::class, fn ($app): ListenBrainzClient => new ListenBrainzClient(
             token: $app->make(ProviderCredentialResolver::class)->resolve('listenbrainz')['secret'],
         ));
-        $this->app->scoped(DiscogsClient::class, fn ($app): DiscogsClient => new DiscogsClient(
-            $app->make(ProviderCredentialResolver::class)->resolve('discogs')['secret'],
-        ));
-        $this->app->scoped(GotifyClient::class, fn ($app): GotifyClient => new GotifyClient(
-            $app->make(ProviderCredentialResolver::class)->resolve('gotify')['secret'],
-        ));
-        $this->app->scoped(TheAudioDbClient::class, fn ($app): TheAudioDbClient => new TheAudioDbClient(
-            $app->make(ProviderCredentialResolver::class)->resolve('theaudiodb')['secret'],
-        ));
+
     }
 
     /**

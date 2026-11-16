@@ -102,22 +102,6 @@ class ListenBrainzClientTest extends TestCase
         app(ListenBrainzClient::class)->listens(100, 200, 2);
     }
 
-    public function test_it_reads_current_recording_recommendations_and_accepts_no_content(): void
-    {
-        Http::fakeSequence('https://listenbrainz.test/1/cf/recommendation/user/fixture-user/recording*')
-            ->push($this->fixture('recommendations.json'), 200, ['Content-Type' => 'application/json'])
-            ->push('', 204);
-
-        $recommendations = app(ListenBrainzClient::class)->recordingRecommendations(2);
-
-        $this->assertSame('fixture-model-v1', $recommendations['payload']['model_id']);
-        $this->assertSame('11111111-1111-4111-8111-111111111111', $recommendations['payload']['mbids'][0]['recording_mbid']);
-        $this->assertSame(0.8, $recommendations['payload']['mbids'][0]['score']);
-        $this->assertNull(app(ListenBrainzClient::class)->recordingRecommendations(2));
-        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/cf/recommendation/')
-            && ! $request->hasHeader('Authorization'));
-    }
-
     public function test_it_reads_a_symmetric_public_release_window_with_exact_musicbrainz_identities(): void
     {
         $release = [

@@ -99,59 +99,6 @@ class ListenBrainzClient
         return $response;
     }
 
-    /** @return array{payload:array{count:int,entity:string,last_updated:?int,model_id:?string,user_name:string,mbids:list<array{recording_mbid:string,score:float,latest_listened_at:?string}>}}|null */
-    public function recordingRecommendations(int $count, int $offset = 0): ?array
-    {
-        if ($count < 1 || $count > 1000 || $offset < 0) {
-            throw new RuntimeException('Invalid ListenBrainz recommendation request.');
-        }
-        $username = $this->resolvedUsername();
-        $httpResponse = $this->request(authenticated: false)->get(
-            '/1/cf/recommendation/user/'.rawurlencode($username).'/recording',
-            ['count' => $count, 'offset' => $offset],
-        );
-        if ($httpResponse->status() === 204) {
-            return null;
-        }
-        $response = $this->decode($httpResponse->throw());
-        $payload = $response['payload'] ?? null;
-        if (! is_array($payload) || ($payload['entity'] ?? null) !== 'recording'
-            || ! is_string($payload['user_name'] ?? null) || ! hash_equals($username, $payload['user_name'])
-            || ! is_array($payload['mbids'] ?? null) || ! array_is_list($payload['mbids'])) {
-            throw new RuntimeException('ListenBrainz returned an invalid recommendation payload.');
-        }
-        $recommendations = [];
-        foreach ($payload['mbids'] as $record) {
-            $mbid = is_array($record) && array_is_list($record) ? ($record[0] ?? null) : ($record['recording_mbid'] ?? null);
-            $score = is_array($record) && array_is_list($record) ? ($record[1] ?? null) : ($record['score'] ?? null);
-            $latestListenedAt = is_array($record) && ! array_is_list($record) ? ($record['latest_listened_at'] ?? null) : null;
-            if (! is_string($mbid) || ! Str::isUuid($mbid) || ! is_numeric($score)
-                || ! is_finite((float) $score) || ($latestListenedAt !== null && ! is_string($latestListenedAt))) {
-                throw new RuntimeException('ListenBrainz returned an invalid recommendation record.');
-            }
-            $recommendations[] = [
-                'recording_mbid' => strtolower($mbid),
-                'score' => (float) $score,
-                'latest_listened_at' => $latestListenedAt,
-            ];
-        }
-        if (isset($payload['count']) && (! is_int($payload['count']) || $payload['count'] !== count($recommendations))) {
-            throw new RuntimeException('ListenBrainz recommendation count did not match its payload.');
-        }
-        if (count($recommendations) > $count) {
-            throw new RuntimeException('ListenBrainz returned more recommendations than requested.');
-        }
-
-        return ['payload' => [
-            'count' => count($recommendations),
-            'entity' => 'recording',
-            'last_updated' => is_int($payload['last_updated'] ?? null) ? $payload['last_updated'] : null,
-            'model_id' => is_string($payload['model_id'] ?? null) ? $payload['model_id'] : null,
-            'user_name' => $username,
-            'mbids' => $recommendations,
-        ]];
-    }
-
     /**
      * @return array{payload:array{total_count:int,releases:list<array{
      *     artist_credit_name:string,artist_mbids:list<string>,release_date:string,
@@ -184,6 +131,85 @@ class ListenBrainzClient
             throw new RuntimeException('ListenBrainz returned an invalid fresh-releases payload.');
         }
 
+        return $this->normalizeFreshReleases($payload, $releaseDate, $days, $past, $future);
+    }
+
+    public function userFreshReleases(int $days = 30): array
+    {
+        if ($days < 1 || $days > 90) {
+            throw new RuntimeException('Personal fresh-release days must be between 1 and 90.');
+        }
+        $username = $this->resolvedUsername();
+        $httpResponse = $this->request(authenticated: false)->get('/1/user/'.rawurlencode($username).'/fresh_releases', [
+            'days' => $days, 'past' => 'true', 'future' => 'true',
+        ]);
+        if ($httpResponse->status() === 204) {
+            return ['payload' => ['total_count' => 0, 'releases' => []]];
+        }
+        $payload = $this->decode($httpResponse->throw())['payload'] ?? null;
+        if (! is_array($payload) || ($payload['user_id'] ?? null) !== $username
+            || ! is_array($payload['releases'] ?? null) || ! array_is_list($payload['releases'])
+            || count($payload['releases']) > self::MAX_FRESH_RELEASES) {
+            throw new RuntimeException('ListenBrainz returned invalid personal fresh releases.');
+        }
+        $payload['total_count'] = count($payload['releases']);
+
+        return $this->normalizeFreshReleases($payload, CarbonImmutable::today('UTC'), $days, true, true);
+    }
+
+    public function artistRadio(string $artistMbid): array
+    {
+        if (! Str::isUuid($artistMbid)) {
+            throw new RuntimeException('Invalid radio seed MBID.');
+        }
+        $result = $this->decode($this->request(authenticated: false)->get('/1/lb-radio/artist/'.$artistMbid, [
+            'mode' => 'medium', 'max_similar_artists' => (int) config('discovery.radio_artist_limit', 30),
+            'max_recordings_per_artist' => 1, 'pop_begin' => 0, 'pop_end' => 100,
+        ])->throw());
+        $artists = [];
+        foreach ($result as $mbid => $recordings) {
+            if (! Str::isUuid((string) $mbid) || strtolower($mbid) === strtolower($artistMbid) || ! is_array($recordings)) {
+                continue;
+            }
+            foreach ($recordings as $recording) {
+                if (is_array($recording) && strtolower((string) ($recording['similar_artist_mbid'] ?? '')) === strtolower($mbid)
+                    && is_string($recording['similar_artist_name'] ?? null) && trim($recording['similar_artist_name']) !== '') {
+                    $artists[strtolower($mbid)] = trim($recording['similar_artist_name']);
+                    break;
+                }
+            }
+        }
+
+        return $artists;
+    }
+
+    public function artistPopularity(array $mbids): array
+    {
+        $result = [];
+        foreach (array_chunk($mbids, 100) as $chunk) {
+            $rows = $this->decode($this->request(authenticated: false)->post('/1/popularity/artist', ['artist_mbids' => $chunk])->throw(), true);
+            foreach ($rows as $row) {
+                if (is_array($row) && in_array($row['artist_mbid'] ?? null, $chunk, true)
+                    && is_int($row['total_user_count'] ?? null) && $row['total_user_count'] >= 0) {
+                    $result[$row['artist_mbid']] = $row['total_user_count'];
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    public function topReleaseGroups(string $artistMbid): array
+    {
+        if (! Str::isUuid($artistMbid)) {
+            throw new RuntimeException('Invalid top-release-groups artist MBID.');
+        }
+
+        return $this->decode($this->request(authenticated: false)->get('/1/popularity/top-release-groups-for-artist/'.$artistMbid)->throw(), true);
+    }
+
+    private function normalizeFreshReleases(array $payload, CarbonImmutable $releaseDate, int $days, bool $past, bool $future): array
+    {
         $minimumDate = $past ? $releaseDate->subDays($days) : $releaseDate;
         $maximumDate = $future ? $releaseDate->addDays($days) : $releaseDate;
         $releases = [];
@@ -258,7 +284,7 @@ class ListenBrainzClient
     }
 
     /** @return array<string, mixed> */
-    private function decode(Response $response): array
+    private function decode(Response $response, bool $list = false): array
     {
         if (! str_contains(strtolower($response->header('Content-Type', '')), 'application/json')) {
             throw new RuntimeException('ListenBrainz returned an unexpected content type.');
@@ -281,7 +307,7 @@ class ListenBrainzClient
         } catch (JsonException $exception) {
             throw new RuntimeException('ListenBrainz returned invalid JSON.', previous: $exception);
         }
-        if (! is_array($payload) || array_is_list($payload)) {
+        if (! is_array($payload) || ($list ? ! array_is_list($payload) : ($payload !== [] && array_is_list($payload)))) {
             throw new RuntimeException('ListenBrainz returned an invalid JSON object.');
         }
 

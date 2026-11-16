@@ -15,9 +15,6 @@ class ProviderCredentialResolver
     private const CONFIG_KEYS = [
         'plex' => 'token',
         'listenbrainz' => 'token',
-        'discogs' => 'token',
-        'gotify' => 'token',
-        'theaudiodb' => 'api_key',
     ];
 
     /** @return list<string> */

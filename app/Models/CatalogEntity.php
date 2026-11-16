@@ -52,16 +52,6 @@ class CatalogEntity extends Model
         return $this->hasMany(ExternalIdentifier::class, 'entity_id');
     }
 
-    public function narratives(): HasMany
-    {
-        return $this->hasMany(EntityNarrative::class, 'entity_id');
-    }
-
-    public function credits(): HasMany
-    {
-        return $this->hasMany(CreditEdge::class, 'subject_entity_id');
-    }
-
     public function plexMatches(): HasMany
     {
         return $this->hasMany(PlexEntityMatch::class, 'entity_id');

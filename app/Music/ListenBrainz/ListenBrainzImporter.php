@@ -9,6 +9,8 @@ use App\Models\SourceObject;
 use App\Models\SourceProvider;
 use App\Models\SourceSnapshot;
 use App\Models\User;
+use App\Music\Discovery\Identity;
+use App\Music\Discovery\PickStateReconciler;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -40,7 +42,10 @@ class ListenBrainzImporter
         }
 
         try {
-            return $this->performImport($full, $maxPages);
+            $result = $this->performImport($full, $maxPages);
+            app(PickStateReconciler::class)->reconcile();
+
+            return $result;
         } finally {
             $lock->release();
         }
@@ -69,7 +74,7 @@ class ListenBrainzImporter
         $lowerBound = $full ? null : max(
             0,
             (int) ($startCursor['latest_listened_at'] ?? 0)
-                - (int) config('services.listenbrainz.overlap_seconds', 3600),
+                - (int) config('services.listenbrainz.overlap_seconds', 172800),
         );
         $minTimestamp = $lowerBound;
         $maxTimestamp = null;
@@ -387,6 +392,26 @@ class ListenBrainzImporter
                 );
             }
         }
+        // Derived identities can change on a full re-import without mutating listening_events.
+        $identities = [];
+        foreach ($listens as $listen) {
+            $track = $listen['track_metadata'];
+            $additional = $track['additional_info'] ?? [];
+            $mapping = $track['mbid_mapping'] ?? [];
+            $row = $this->eventRow($account, $snapshot, $listen, $retrievedAt);
+            $identities[$row['fingerprint']] = [
+                'artist_mbids' => json_encode(Identity::mbids([
+                    ...Identity::mbids($additional['artist_mbids'] ?? []), ...Identity::mbids($mapping['artist_mbids'] ?? []),
+                ]), JSON_THROW_ON_ERROR),
+                'release_group_mbid' => $row['release_group_mbid'],
+            ];
+        }
+        foreach ($events as $event) {
+            DB::table('activity.listen_identities')->updateOrInsert(
+                ['listening_event_id' => $event->id],
+                [...$identities[$event->fingerprint], 'created_at' => $retrievedAt, 'updated_at' => $retrievedAt],
+            );
+        }
         $matchCounts = $this->matcher->match($events, $run->id, $trackLastSeen);
         $inserted = count($rows) - $existingBefore;
 
@@ -416,7 +441,7 @@ class ListenBrainzImporter
         );
         [$releaseGroupMbid, $releaseGroupConflict] = $this->identifier(
             $additional['release_group_mbid'] ?? null,
-            null,
+            $mapping['release_group_mbid'] ?? null,
         );
         $identifierConflicts = array_values(array_filter([
             $recordingConflict ? 'recording_mbid' : null,
